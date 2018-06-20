@@ -213,7 +213,7 @@
   </select>
 
   <sql id="selectHistoricVariableInstanceByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from ${prefix}ACT_HI_VARINST RES
 
     <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
@@ -231,19 +231,22 @@
         RES.ID_ = #{variableId}
       </if>
       <if test="processInstanceId != null">
-        RES.PROC_INST_ID_ = #{processInstanceId}
+        and RES.PROC_INST_ID_ = #{processInstanceId}
       </if>
       <if test="caseInstanceId != null">
-        RES.CASE_INST_ID_ = #{caseInstanceId}
+        and RES.CASE_INST_ID_ = #{caseInstanceId}
       </if>
-       <if test="processDefinitionId != null">
+      <if test="processDefinitionId != null">
         and RES.PROC_DEF_ID_ = #{processDefinitionId}
+      </if>
+      <if test="processDefinitionKey !=null">
+        and RES.PROC_DEF_KEY_ = #{processDefinitionKey}
       </if>
       <if test="variableName != null">
         and RES.NAME_ = #{variableName}
       </if>
       <if test="variableNameLike != null">
-        and RES.NAME_ like #{variableNameLike} ESCAPE #{escapeChar}
+        and RES.NAME_ like #{variableNameLike} ESCAPE ${escapeChar}
       </if>
       <if test="includeDeleted == false">
         and (RES.STATE_ != 'DELETED' or RES.STATE_ is null)

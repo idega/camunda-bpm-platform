@@ -41,6 +41,8 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
 
   protected Map<String, TopicFetchInstruction> instructions;
 
+  protected boolean filterByBusinessKey;
+
   protected TopicFetchInstruction currentInstruction;
 
   public ExternalTaskQueryTopicBuilderImpl(CommandExecutor commandExecutor, String workerId, int maxTasks, boolean usePriority) {
@@ -48,12 +50,13 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     this.workerId = workerId;
     this.maxTasks = maxTasks;
     this.usePriority = usePriority;
+    this.filterByBusinessKey = false;
     this.instructions = new HashMap<String, TopicFetchInstruction>();
   }
 
   public List<LockedExternalTask> execute() {
     submitCurrentInstruction();
-    return commandExecutor.execute(new FetchExternalTasksCmd(workerId, maxTasks, instructions, usePriority));
+    return commandExecutor.execute(new FetchExternalTasksCmd(workerId, maxTasks, instructions, filterByBusinessKey, usePriority));
   }
 
   public ExternalTaskQueryTopicBuilder topic(String topicName, long lockDuration) {
@@ -76,6 +79,22 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     return this;
   }
 
+  public ExternalTaskQueryTopicBuilder processInstanceVariableEquals(Map<String, Object> variables) {
+    currentInstruction.setFilterVariables(variables);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processInstanceVariableEquals(String name, Object value) {
+    currentInstruction.addFilterVariable(name, value);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder businessKey(String businessKey) {
+    this.filterByBusinessKey = true;
+    currentInstruction.setBusinessKey(businessKey);
+    return this;
+  }
+
   protected void submitCurrentInstruction() {
     if (currentInstruction != null) {
       this.instructions.put(currentInstruction.getTopicName(), currentInstruction);
@@ -86,5 +105,11 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     currentInstruction.setDeserializeVariables(true);
     return this;
   }
+
+  public ExternalTaskQueryTopicBuilder localVariables() {
+    currentInstruction.setLocalVariables(true);
+    return this;
+  }
+
 
 }

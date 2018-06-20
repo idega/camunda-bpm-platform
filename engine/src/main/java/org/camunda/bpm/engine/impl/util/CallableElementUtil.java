@@ -50,6 +50,11 @@ public class CallableElementUtil {
     } else if (callableElement.isVersionBinding()) {
       Integer version = callableElement.getVersion(execution);
       processDefinition = deploymentCache.findDeployedProcessDefinitionByKeyVersionAndTenantId(processDefinitionKey, version, tenantId);
+
+    } else if (callableElement.isVersionTagBinding()) {
+      String versionTag = callableElement.getVersionTag(execution);
+      processDefinition = deploymentCache.findDeployedProcessDefinitionByKeyVersionTagAndTenantId(processDefinitionKey, versionTag, tenantId);
+
     }
 
     return processDefinition;
@@ -94,6 +99,10 @@ public class CallableElementUtil {
     } else if (callableElement.isVersionBinding()) {
       Integer version = callableElement.getVersion(execution);
       decisionDefinition = deploymentCache.findDeployedDecisionDefinitionByKeyVersionAndTenantId(decisionDefinitionKey, version, tenantId);
+
+    } else if (callableElement.isVersionTagBinding()) {
+      String versionTag = callableElement.getVersionTag(execution);
+      decisionDefinition = deploymentCache.findDeployedDecisionDefinitionByKeyVersionTagAndTenantId(decisionDefinitionKey, versionTag, tenantId);
     }
 
     return decisionDefinition;

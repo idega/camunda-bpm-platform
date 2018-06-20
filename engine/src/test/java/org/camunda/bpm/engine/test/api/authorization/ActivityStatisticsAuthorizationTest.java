@@ -18,6 +18,8 @@ import static org.camunda.bpm.engine.authorization.Permissions.READ_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_INSTANCE;
 
+import java.util.List;
+
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.impl.AbstractQuery;
 import org.camunda.bpm.engine.management.ActivityStatistics;
@@ -430,6 +432,50 @@ public class ActivityStatisticsAuthorizationTest extends AuthorizationTest {
     assertFalse(statistics.getIncidentStatistics().isEmpty());
     IncidentStatistics incidentStatistics = statistics.getIncidentStatistics().get(0);
     assertEquals(3, incidentStatistics.getIncidentCount());
+  }
+
+  public void testManyAuthorizationsActivityStatisticsQueryIncludingFailedJobsAndIncidents() {
+    String processDefinitionId = selectProcessDefinitionByKey(ONE_INCIDENT_PROCESS_KEY).getId();
+
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_INCIDENT_PROCESS_KEY, userId, READ, READ_INSTANCE);
+    createGrantAuthorizationGroup(PROCESS_DEFINITION, ONE_INCIDENT_PROCESS_KEY, groupId, READ, READ_INSTANCE);
+
+    List<ActivityStatistics> statistics =
+      managementService
+        .createActivityStatisticsQuery(processDefinitionId)
+        .includeFailedJobs()
+        .includeIncidents()
+        .list();
+
+    assertEquals(1, statistics.size());
+
+    ActivityStatistics activityResult = statistics.get(0);
+    assertEquals(3, activityResult.getInstances());
+    assertEquals("scriptTask", activityResult.getId());
+    assertEquals(3, activityResult.getFailedJobs());
+    assertFalse(activityResult.getIncidentStatistics().isEmpty());
+    IncidentStatistics incidentStatistics = activityResult.getIncidentStatistics().get(0);
+    assertEquals(3, incidentStatistics.getIncidentCount());
+  }
+
+  public void testManyAuthorizationsActivityStatisticsQuery() {
+    String processDefinitionId = selectProcessDefinitionByKey(ONE_INCIDENT_PROCESS_KEY).getId();
+
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_INCIDENT_PROCESS_KEY, userId, READ, READ_INSTANCE);
+    createGrantAuthorizationGroup(PROCESS_DEFINITION, ONE_INCIDENT_PROCESS_KEY, groupId, READ, READ_INSTANCE);
+
+    List<ActivityStatistics> statistics =
+      managementService
+        .createActivityStatisticsQuery(processDefinitionId)
+        .list();
+
+    assertEquals(1, statistics.size());
+
+    ActivityStatistics activityResult = statistics.get(0);
+    assertEquals(3, activityResult.getInstances());
+    assertEquals("scriptTask", activityResult.getId());
+    assertEquals(0, activityResult.getFailedJobs());
+    assertTrue(activityResult.getIncidentStatistics().isEmpty());
   }
 
   // helper ///////////////////////////////////////////////////////////////////////////

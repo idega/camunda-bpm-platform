@@ -15,7 +15,9 @@ package org.camunda.bpm.engine.impl;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.IdentityService;
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.identity.NativeUserQuery;
@@ -53,11 +55,13 @@ import org.camunda.bpm.engine.impl.cmd.SaveTenantCmd;
 import org.camunda.bpm.engine.impl.cmd.SaveUserCmd;
 import org.camunda.bpm.engine.impl.cmd.SetUserInfoCmd;
 import org.camunda.bpm.engine.impl.cmd.SetUserPictureCmd;
+import org.camunda.bpm.engine.impl.cmd.UnlockUserCmd;
 import org.camunda.bpm.engine.impl.identity.Account;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.IdentityInfoEntity;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
+import org.camunda.bpm.engine.impl.util.ExceptionUtil;
 
 
 /**
@@ -89,7 +93,15 @@ public class IdentityServiceImpl extends ServiceImpl implements IdentityService 
   }
 
   public void saveUser(User user) {
-    commandExecutor.execute(new SaveUserCmd(user));
+
+    try {
+      commandExecutor.execute(new SaveUserCmd(user));
+    } catch (ProcessEngineException ex) {
+      if (ExceptionUtil.checkConstraintViolationException(ex)) {
+        throw new BadUserRequestException("The user already exists", ex);
+      }
+      throw ex;
+    }
   }
 
   public void saveTenant(Tenant tenant) {
@@ -127,6 +139,10 @@ public class IdentityServiceImpl extends ServiceImpl implements IdentityService 
 
   public boolean checkPassword(String userId, String password) {
     return commandExecutor.execute(new CheckPassword(userId, password));
+  }
+
+  public void unlockUser(String userId) {
+    commandExecutor.execute(new UnlockUserCmd(userId));
   }
 
   public void deleteUser(String userId) {

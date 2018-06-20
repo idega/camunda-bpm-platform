@@ -36,6 +36,7 @@ import org.camunda.bpm.engine.impl.core.variable.scope.VariableStore;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableStore.VariablesProvider;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
+import org.camunda.bpm.engine.impl.db.HasDbReferences;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
@@ -76,7 +77,7 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
  * @author Falko Menge
  * @author Deivarayan Azhagappan
  */
-public class TaskEntity extends AbstractVariableScope implements Task, DelegateTask, Serializable, DbEntity, HasDbRevision, CommandContextListener, VariablesProvider<VariableInstanceEntity> {
+public class TaskEntity extends AbstractVariableScope implements Task, DelegateTask, Serializable, DbEntity, HasDbRevision, HasDbReferences, CommandContextListener, VariablesProvider<VariableInstanceEntity> {
 
   protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
@@ -507,6 +508,13 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
         .findVariableInstancesByTaskId(id);
   }
 
+  public Collection<VariableInstanceEntity> provideVariables(Collection<String> variableNames) {
+    return Context
+        .getCommandContext()
+        .getVariableInstanceManager()
+        .findVariableInstancesByTaskIdAndVariableNames(id, variableNames);
+  }
+
   @Override
   public AbstractVariableScope getParentVariableScope() {
     if (getExecution()!=null) {
@@ -596,12 +604,15 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
       this.caseExecutionId = this.caseExecution.getId();
       this.caseInstanceId = this.caseExecution.getCaseInstanceId();
       this.caseDefinitionId = this.caseExecution.getCaseDefinitionId();
+      this.tenantId = this.caseExecution.getTenantId();
 
     } else {
       this.caseExecution = null;
       this.caseExecutionId = null;
       this.caseInstanceId = null;
       this.caseDefinitionId = null;
+      this.tenantId = null;
+
     }
   }
 
@@ -1458,5 +1469,34 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   public void setVariablesLocal(Map<String, ?> variables) {
     super.setVariablesLocal(variables);
     Context.getCommandContext().getDbEntityManager().forceUpdate(this);
+  }
+
+  @Override
+  public Set<String> getReferencedEntityIds() {
+    Set<String> referencedEntityIds = new HashSet<String>();
+    return referencedEntityIds;
+  }
+
+  @Override
+  public Map<String, Class> getReferencedEntitiesIdAndClass() {
+    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+
+    if (processDefinitionId != null) {
+      referenceIdAndClass.put(processDefinitionId, ProcessDefinitionEntity.class);
+    }
+    if (processInstanceId != null) {
+      referenceIdAndClass.put(processInstanceId, ExecutionEntity.class);
+    }
+    if (executionId != null) {
+      referenceIdAndClass.put(executionId, ExecutionEntity.class);
+    }
+    if (caseDefinitionId != null) {
+      referenceIdAndClass.put(caseDefinitionId, CaseDefinitionEntity.class);
+    }
+    if (caseExecutionId != null) {
+      referenceIdAndClass.put(caseExecutionId, CaseExecutionEntity.class);
+    }
+
+    return referenceIdAndClass;
   }
 }

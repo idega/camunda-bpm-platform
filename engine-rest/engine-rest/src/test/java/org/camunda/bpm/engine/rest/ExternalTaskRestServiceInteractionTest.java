@@ -136,7 +136,10 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
     when(fetchTopicBuilder.variables(anyListOf(String.class))).thenReturn(fetchTopicBuilder);
     when(fetchTopicBuilder.variables(any(String[].class))).thenReturn(fetchTopicBuilder);
     when(fetchTopicBuilder.enableCustomObjectDeserialization()).thenReturn(fetchTopicBuilder);
+    when(fetchTopicBuilder.localVariables()).thenReturn(fetchTopicBuilder);
     when(fetchTopicBuilder.topic(any(String.class), anyLong())).thenReturn(fetchTopicBuilder);
+    when(fetchTopicBuilder.businessKey(any(String.class))).thenReturn(fetchTopicBuilder);
+    when(fetchTopicBuilder.processInstanceVariableEquals(anyMapOf(String.class, Object.class))).thenReturn(fetchTopicBuilder);
 
     Batch batch = createMockBatch();
     updateRetriesBuilder = mock(UpdateExternalTaskRetriesBuilder.class);
@@ -212,6 +215,122 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
   }
 
   @Test
+  public void testFetchAndLockWithBusinessKey() {
+    // given
+    when(fetchTopicBuilder.execute()).thenReturn(Arrays.asList(lockedExternalTaskMock));
+
+    // when
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("maxTasks", 5);
+    parameters.put("workerId", "aWorkerId");
+    parameters.put("usePriority", true);
+
+    Map<String, Object> topicParameter = new HashMap<String, Object>();
+    topicParameter.put("topicName", "aTopicName");
+    topicParameter.put("businessKey", EXAMPLE_BUSINESS_KEY);
+    topicParameter.put("lockDuration", 12354L);
+    topicParameter.put("variables", Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+    parameters.put("topics", Arrays.asList(topicParameter));
+
+    given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(parameters)
+        .header("accept", MediaType.APPLICATION_JSON)
+        .then().expect().statusCode(Status.OK.getStatusCode())
+        .body("[0].id", equalTo(MockProvider.EXTERNAL_TASK_ID))
+        .body("[0].topicName", equalTo(MockProvider.EXTERNAL_TASK_TOPIC_NAME))
+        .body("[0].workerId", equalTo(MockProvider.EXTERNAL_TASK_WORKER_ID))
+        .body("[0].lockExpirationTime", equalTo(MockProvider.EXTERNAL_TASK_LOCK_EXPIRATION_TIME))
+        .body("[0].processInstanceId", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+        .body("[0].executionId", equalTo(MockProvider.EXAMPLE_EXECUTION_ID))
+        .body("[0].activityId", equalTo(MockProvider.EXAMPLE_ACTIVITY_ID))
+        .body("[0].activityInstanceId", equalTo(MockProvider.EXAMPLE_ACTIVITY_INSTANCE_ID))
+        .body("[0].processDefinitionId", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .body("[0].processDefinitionKey", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY))
+        .body("[0].tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
+        .body("[0].retries", equalTo(MockProvider.EXTERNAL_TASK_RETRIES))
+        .body("[0].errorMessage", equalTo(MockProvider.EXTERNAL_TASK_ERROR_MESSAGE))
+        .body("[0].errorMessage", equalTo(MockProvider.EXTERNAL_TASK_ERROR_MESSAGE))
+        .body("[0].priority", equalTo(MockProvider.EXTERNAL_TASK_PRIORITY))
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME,
+            notNullValue())
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".value",
+            equalTo(MockProvider.EXAMPLE_PRIMITIVE_VARIABLE_VALUE.getValue()))
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".type",
+            equalTo("String"))
+        .when().post(FETCH_EXTERNAL_TASK_URL);
+
+    InOrder inOrder = inOrder(fetchTopicBuilder, externalTaskService);
+    inOrder.verify(externalTaskService).fetchAndLock(5, "aWorkerId", true);
+    inOrder.verify(fetchTopicBuilder).topic("aTopicName", 12354L);
+    inOrder.verify(fetchTopicBuilder).businessKey(EXAMPLE_BUSINESS_KEY);
+    inOrder.verify(fetchTopicBuilder).variables(Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+    inOrder.verify(fetchTopicBuilder).execute();
+    verifyNoMoreInteractions(fetchTopicBuilder, externalTaskService);
+  }
+
+  @Test
+  public void testFetchAndLockWithVariableValue() {
+    // given
+    when(fetchTopicBuilder.execute()).thenReturn(Arrays.asList(lockedExternalTaskMock));
+
+    // when
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("maxTasks", 5);
+    parameters.put("workerId", "aWorkerId");
+    parameters.put("usePriority", true);
+
+    Map<String, Object> topicParameter = new HashMap<String, Object>();
+    topicParameter.put("topicName", "aTopicName");
+    topicParameter.put("businessKey", EXAMPLE_BUSINESS_KEY);
+    topicParameter.put("lockDuration", 12354L);
+    topicParameter.put("variables", Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+
+    Map<String, Object> variableValueParameter = new HashMap<String, Object>();
+    variableValueParameter.put(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME, MockProvider.EXAMPLE_PRIMITIVE_VARIABLE_VALUE.getValue());
+    topicParameter.put("processVariables", variableValueParameter);
+
+    parameters.put("topics", Arrays.asList(topicParameter));
+
+    given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(parameters)
+        .header("accept", MediaType.APPLICATION_JSON)
+        .then().expect().statusCode(Status.OK.getStatusCode())
+        .body("[0].id", equalTo(MockProvider.EXTERNAL_TASK_ID))
+        .body("[0].topicName", equalTo(MockProvider.EXTERNAL_TASK_TOPIC_NAME))
+        .body("[0].workerId", equalTo(MockProvider.EXTERNAL_TASK_WORKER_ID))
+        .body("[0].lockExpirationTime", equalTo(MockProvider.EXTERNAL_TASK_LOCK_EXPIRATION_TIME))
+        .body("[0].processInstanceId", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+        .body("[0].executionId", equalTo(MockProvider.EXAMPLE_EXECUTION_ID))
+        .body("[0].activityId", equalTo(MockProvider.EXAMPLE_ACTIVITY_ID))
+        .body("[0].activityInstanceId", equalTo(MockProvider.EXAMPLE_ACTIVITY_INSTANCE_ID))
+        .body("[0].processDefinitionId", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .body("[0].processDefinitionKey", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY))
+        .body("[0].tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
+        .body("[0].retries", equalTo(MockProvider.EXTERNAL_TASK_RETRIES))
+        .body("[0].errorMessage", equalTo(MockProvider.EXTERNAL_TASK_ERROR_MESSAGE))
+        .body("[0].errorMessage", equalTo(MockProvider.EXTERNAL_TASK_ERROR_MESSAGE))
+        .body("[0].priority", equalTo(MockProvider.EXTERNAL_TASK_PRIORITY))
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME,
+            notNullValue())
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".value",
+            equalTo(MockProvider.EXAMPLE_PRIMITIVE_VARIABLE_VALUE.getValue()))
+        .body("[0].variables." + MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".type",
+            equalTo("String"))
+        .when().post(FETCH_EXTERNAL_TASK_URL);
+
+    InOrder inOrder = inOrder(fetchTopicBuilder, externalTaskService);
+    inOrder.verify(externalTaskService).fetchAndLock(5, "aWorkerId", true);
+    inOrder.verify(fetchTopicBuilder).topic("aTopicName", 12354L);
+    inOrder.verify(fetchTopicBuilder).businessKey(EXAMPLE_BUSINESS_KEY);
+    inOrder.verify(fetchTopicBuilder).variables(Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+    inOrder.verify(fetchTopicBuilder).processInstanceVariableEquals(variableValueParameter);
+    inOrder.verify(fetchTopicBuilder).execute();
+    verifyNoMoreInteractions(fetchTopicBuilder, externalTaskService);
+  }
+
+  @Test
   public void testFetchWithoutVariables() {
     // given
     when(fetchTopicBuilder.execute()).thenReturn(Arrays.asList(lockedExternalTaskMock));
@@ -281,6 +400,44 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  public void testLocalVariables() {
+    // given
+    when(fetchTopicBuilder.execute()).thenReturn(Arrays.asList(lockedExternalTaskMock));
+
+    // when
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("maxTasks", 5);
+    parameters.put("workerId", "aWorkerId");
+
+    Map<String, Object> topicParameter = new HashMap<String, Object>();
+    topicParameter.put("topicName", "aTopicName");
+    topicParameter.put("lockDuration", 12354L);
+    topicParameter.put("variables", Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+    topicParameter.put("localVariables", true);
+    parameters.put("topics", Arrays.asList(topicParameter));
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+      .header("accept", MediaType.APPLICATION_JSON)
+    .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(FETCH_EXTERNAL_TASK_URL);
+
+    InOrder inOrder = inOrder(fetchTopicBuilder, externalTaskService);
+    inOrder.verify(externalTaskService).fetchAndLock(5, "aWorkerId", false);
+    inOrder.verify(fetchTopicBuilder).topic("aTopicName", 12354L);
+    inOrder.verify(fetchTopicBuilder).variables(Arrays.asList(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME));
+    inOrder.verify(fetchTopicBuilder).localVariables();
+    inOrder.verify(fetchTopicBuilder).execute();
+    verifyNoMoreInteractions(fetchTopicBuilder, externalTaskService);
+  }
+
+
+  @Test
   public void testComplete() {
     Map<String, String> parameters = new HashMap<String, String>();
     parameters.put("workerId", "aWorkerId");
@@ -295,7 +452,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
     .when()
       .post(COMPLETE_EXTERNAL_TASK_URL);
 
-    verify(externalTaskService).complete("anExternalTaskId", "aWorkerId", null);
+    verify(externalTaskService).complete("anExternalTaskId", "aWorkerId", null, null);
     verifyNoMoreInteractions(externalTaskService);
   }
 
@@ -333,6 +490,47 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
                 .type(ValueType.OBJECT)
                 .serializedValue("val3")
                 .serializationFormat("aFormat")
+                .objectTypeName("aRootType"))),
+        eq((Map<String, Object>) null));
+
+    verifyNoMoreInteractions(externalTaskService);
+  }
+
+  @Test
+  public void testCompleteWithLocalVariables() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("workerId", "aWorkerId");
+
+    Map<String, Object> variables = VariablesBuilder
+        .create()
+        .variable("var1", "val1")
+        .variable("var2", "val2", "String")
+        .variable("var3", ValueType.OBJECT.getName(), "val3", "aFormat", "aRootType")
+        .getVariables();
+    parameters.put("localVariables", variables);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+      .pathParam("id", "anExternalTaskId")
+    .then()
+      .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(COMPLETE_EXTERNAL_TASK_URL);
+
+    verify(externalTaskService).complete(
+        eq("anExternalTaskId"),
+        eq("aWorkerId"),
+        eq((Map<String, Object>) null),
+        argThat(EqualsVariableMap.matches()
+          .matcher("var1", EqualsUntypedValue.matcher().value("val1"))
+          .matcher("var2", EqualsPrimitiveValue.stringValue("val2"))
+          .matcher("var3",
+              EqualsObjectValue.objectValueMatcher()
+                .type(ValueType.OBJECT)
+                .serializedValue("val3")
+                .serializationFormat("aFormat")
                 .objectTypeName("aRootType"))));
 
     verifyNoMoreInteractions(externalTaskService);
@@ -342,7 +540,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
   public void testCompleteNonExistingTask() {
     doThrow(new NotFoundException())
       .when(externalTaskService)
-      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class));
+      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class), anyMapOf(String.class, Object.class));
 
     Map<String, String> parameters = new HashMap<String, String>();
     parameters.put("workerId", "aWorkerId");
@@ -364,7 +562,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
   public void testCompleteThrowsAuthorizationException() {
     doThrow(new AuthorizationException("aMessage"))
       .when(externalTaskService)
-      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class));
+      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class), anyMapOf(String.class, Object.class));
 
     Map<String, String> parameters = new HashMap<String, String>();
     parameters.put("workerId", "aWorkerId");
@@ -386,7 +584,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
   public void testCompleteThrowsBadUserRequestException() {
     doThrow(new BadUserRequestException("aMessage"))
       .when(externalTaskService)
-      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class));
+      .complete(any(String.class), any(String.class), anyMapOf(String.class, Object.class), anyMapOf(String.class, Object.class));
 
     Map<String, String> parameters = new HashMap<String, String>();
     parameters.put("workerId", "aWorkerId");
@@ -860,6 +1058,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
       .body("workerId", equalTo(MockProvider.EXTERNAL_TASK_WORKER_ID))
       .body("tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
       .body("priority", equalTo(MockProvider.EXTERNAL_TASK_PRIORITY))
+      .body("businessKey", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY))
     .when()
       .get(SINGLE_EXTERNAL_TASK_URL);
   }
@@ -1283,7 +1482,7 @@ public class ExternalTaskRestServiceInteractionTest extends AbstractRestServiceT
 
   @Test
   public void testExtendLockOnExternalTask() {
-    
+
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("workerId", "workerId");
     parameters.put("newDuration", "1000");

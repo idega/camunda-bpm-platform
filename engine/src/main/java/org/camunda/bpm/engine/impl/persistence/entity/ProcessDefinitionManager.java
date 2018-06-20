@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 /**
@@ -116,8 +117,21 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
   }
 
   public ProcessDefinitionEntity findProcessDefinitionByKeyVersionAndTenantId(String processDefinitionKey, Integer processDefinitionVersion, String tenantId) {
+    return findProcessDefinitionByKeyVersionOrVersionTag(processDefinitionKey, processDefinitionVersion, null, tenantId);
+  }
+
+  public ProcessDefinitionEntity findProcessDefinitionByKeyVersionTagAndTenantId(String processDefinitionKey, String processDefinitionVersionTag, String tenantId) {
+    return findProcessDefinitionByKeyVersionOrVersionTag(processDefinitionKey, null, processDefinitionVersionTag, tenantId);
+  }
+
+  protected ProcessDefinitionEntity findProcessDefinitionByKeyVersionOrVersionTag(String processDefinitionKey, Integer processDefinitionVersion, String processDefinitionVersionTag,
+      String tenantId) {
     Map<String, Object> parameters = new HashMap<String, Object>();
-    parameters.put("processDefinitionVersion", processDefinitionVersion);
+    if (processDefinitionVersion != null) {
+      parameters.put("processDefinitionVersion", processDefinitionVersion);
+    } else if (processDefinitionVersionTag != null) {
+      parameters.put("processDefinitionVersionTag", processDefinitionVersionTag);
+    }
     parameters.put("processDefinitionKey", processDefinitionKey);
     parameters.put("tenantId", tenantId);
 
@@ -126,7 +140,11 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
     if (results.size() == 1) {
       return results.get(0);
     } else if (results.size() > 1) {
-      throw LOG.toManyProcessDefinitionsException(results.size(), processDefinitionKey, processDefinitionVersion, tenantId);
+      if (processDefinitionVersion != null) {
+        throw LOG.toManyProcessDefinitionsException(results.size(), processDefinitionKey, "version", processDefinitionVersion.toString(), tenantId);
+      } else if (processDefinitionVersionTag != null) {
+        throw LOG.toManyProcessDefinitionsException(results.size(), processDefinitionKey, "versionTag", processDefinitionVersionTag, tenantId);
+      }
     }
     return null;
   }
@@ -170,7 +188,7 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
   }
 
   @SuppressWarnings("unchecked")
-  public List<ProcessDefinition> findDefinitionsByIds(List<String> processDefinitionIds) {
+  public List<ProcessDefinition> findDefinitionsByIds(Set<String> processDefinitionIds) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processDefinitionIds", processDefinitionIds);
     parameters.put("isTenantIdSet", false);
@@ -269,6 +287,10 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
     // remove signal event subscriptions:
     List<EventSubscriptionEntity> signalEventSubscriptions = getEventSubscriptionManager().findEventSubscriptionsByConfiguration(EventType.SIGNAL.name(), processDefinitionId);
     eventSubscriptionsToRemove.addAll(signalEventSubscriptions);
+
+    // remove conditional event subscriptions:
+    List<EventSubscriptionEntity> conditionalEventSubscriptions = getEventSubscriptionManager().findEventSubscriptionsByConfiguration(EventType.CONDITONAL.name(), processDefinitionId);
+    eventSubscriptionsToRemove.addAll(conditionalEventSubscriptions);
 
     for (EventSubscriptionEntity eventSubscriptionEntity : eventSubscriptionsToRemove) {
       eventSubscriptionEntity.delete();
@@ -385,6 +407,11 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
   @Override
   public ProcessDefinitionEntity findDefinitionByKeyVersionAndTenantId(String definitionKey, Integer definitionVersion, String tenantId) {
     return findProcessDefinitionByKeyVersionAndTenantId(definitionKey, definitionVersion, tenantId);
+  }
+
+  @Override
+  public ProcessDefinitionEntity findDefinitionByKeyVersionTagAndTenantId(String definitionKey, String definitionVersionTag, String tenantId) {
+    return findProcessDefinitionByKeyVersionTagAndTenantId(definitionKey, definitionVersionTag, tenantId);
   }
 
   @Override

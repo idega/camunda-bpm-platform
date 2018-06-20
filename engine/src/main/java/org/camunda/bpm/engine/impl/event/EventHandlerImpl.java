@@ -13,7 +13,6 @@
 
 package org.camunda.bpm.engine.impl.event;
 
-
 import java.util.Map;
 
 import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessStartEventActivityBehavior;
@@ -21,6 +20,7 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
+
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
@@ -36,7 +36,7 @@ public class EventHandlerImpl implements EventHandler {
     this.eventType = eventType;
   }
 
-  public void handleIntermediateEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
+  public void handleIntermediateEvent(EventSubscriptionEntity eventSubscription, Object payload, Object localPayload, CommandContext commandContext) {
 
     PvmExecutionImpl execution = eventSubscription.getExecution();
     ActivityImpl activity = eventSubscription.getActivity();
@@ -45,16 +45,18 @@ public class EventHandlerImpl implements EventHandler {
       + "no activity associated with event subscription", "activity", activity);
 
     if (payload instanceof Map) {
-      @SuppressWarnings("unchecked")
-      Map<String, Object> processVariables = (Map<String, Object>) payload;
-      execution.setVariables(processVariables);
+      execution.setVariables((Map<String, Object>)payload);
+    }
+
+    if (localPayload instanceof Map) {
+      execution.setVariablesLocal((Map<String, Object>) localPayload);
     }
 
     if(activity.equals(execution.getActivity())) {
       execution.signal("signal", null);
     }
     else {
-      // hack around the fact that the start event is refrenced by event subscriptions for event subprocesses
+      // hack around the fact that the start event is referenced by event subscriptions for event subprocesses
       // and not the subprocess itself
       if (activity.getActivityBehavior() instanceof EventSubProcessStartEventActivityBehavior) {
         activity = (ActivityImpl) activity.getFlowScope();
@@ -65,8 +67,8 @@ public class EventHandlerImpl implements EventHandler {
   }
 
   @Override
-  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
-    handleIntermediateEvent(eventSubscription, payload, commandContext);
+  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, Object localPayload, String businessKey, CommandContext commandContext) {
+    handleIntermediateEvent(eventSubscription, payload, localPayload, commandContext);
   }
 
   @Override

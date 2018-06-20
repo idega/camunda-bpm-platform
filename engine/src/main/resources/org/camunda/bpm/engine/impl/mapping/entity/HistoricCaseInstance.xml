@@ -141,7 +141,7 @@
   </select>
 
   <sql id="selectHistoricCaseInstancesByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from (
 
       SELECT RES.*, DEF.NAME_, DEF.KEY_
@@ -174,13 +174,13 @@
           and DEF.NAME_ = #{caseDefinitionName}
         </if>
         <if test="caseDefinitionNameLike != null">
-          and DEF.NAME_ like #{caseDefinitionNameLike} ESCAPE #{escapeChar}
+          and DEF.NAME_ like #{caseDefinitionNameLike} ESCAPE ${escapeChar}
         </if>
         <if test="businessKey != null">
           and RES.BUSINESS_KEY_ = #{businessKey}
         </if>
         <if test="businessKeyLike != null">
-          and RES.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE #{escapeChar}
+          and RES.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE ${escapeChar}
         </if>
 
         <if test="createdBefore != null">
@@ -197,7 +197,7 @@
         </if>
         <if test="caseKeyNotIn != null">
           <foreach collection="caseKeyNotIn" index="index" item="caseDefKey">
-          and DEF.KEY_ not like #{caseDefKey} ESCAPE #{escapeChar}
+          and DEF.KEY_ not like #{caseDefKey} ESCAPE ${escapeChar}
         </foreach>
         </if>
 
@@ -295,28 +295,44 @@
 
   <!-- Select ids for async history cleanup -->
   <sql id="selectHistoricCaseInstanceIdsForCleanupSql">
+    <bind name="days" value="'cd.HISTORY_TTL_'"/>
+    <bind name="date" value="'ci.CLOSE_TIME_'"/>
+    <bind name="currentTimestamp" value="parameter.currentTimestamp"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
     FROM ${prefix}ACT_HI_CASEINST ci, ${prefix}ACT_RE_CASE_DEF cd
     where
-    ci.CASE_DEF_ID_ = cd.ID_
-    AND not cd.HISTORY_TTL_ is NULL
+      ci.CASE_DEF_ID_ = cd.ID_
+      AND not cd.HISTORY_TTL_ is NULL
+      AND ${dayComparator}
   </sql>
 
   <select id="selectHistoricCaseInstanceIdsForCleanup" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
-    <bind name="days" value="'cd.HISTORY_TTL_'"/>
-    <bind name="date" value="'ci.CLOSE_TIME_'"/>
-    <bind name="currentTimestamp" value="parameter"/>
-    ${limitBefore}
-    SELECT DISTINCT RES.*
-    ${limitBetween}
-    FROM (
-      SELECT ci.ID_, ci.CLOSE_TIME_
-      <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-      AND ${dayComparator}
-    ) RES
-    ${orderBy}
-    ${limitAfter}
+    SELECT ${limitBeforeWithoutOffset} ci.ID_, ci.CLOSE_TIME_
+    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
   </select>
+
+  <select id="selectHistoricCaseInstanceIdsForCleanup_oracle" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
+    SELECT /*+ FIRST_ROWS(${maxResults}) NO_PARALLEL(ci) NO_PARALLEL(cd) */ ci.ID_, ci.CLOSE_TIME_
+    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </select>
+
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}ci.CLOSE_TIME_${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}ci.CLOSE_TIME_${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
 
   <!-- Select History Cleanup Report Entities -->
   <select id="selectFinishedCaseInstancesReportEntitiesCount" parameterType="org.camunda.bpm.engine.impl.CleanableHistoricCaseInstanceReportImpl" resultType="long">
@@ -346,7 +362,7 @@
         RES.HISTORY_TTL_,
         RES.TENANT_ID_,
         F.FINISHED_,
-        SUM(CASE WHEN CI.CLOSE_TIME_ is not null and ${dayComparator} THEN 1 ELSE 0 END) AS CLEANABLE_
+        SUM(CASE WHEN RES.HISTORY_TTL_ is not null and CI.CLOSE_TIME_ is not null and (RES.HISTORY_TTL_ = 0 OR ${dayComparator}) THEN 1 ELSE 0 END) AS CLEANABLE_
       FROM ${prefix}ACT_RE_CASE_DEF RES
       LEFT JOIN ${prefix}ACT_HI_CASEINST CI
       ON CI.CASE_DEF_ID_ = RES.ID_

@@ -41,6 +41,7 @@ import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.api.runtime.BatchModificationHelper;
 import org.camunda.bpm.engine.test.api.runtime.migration.MigrationTestRule;
 import org.camunda.bpm.engine.test.api.runtime.migration.batch.BatchMigrationHelper;
+import org.camunda.bpm.engine.test.util.ProcessEngineBootstrapRule;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.model.bpmn.Bpmn;
@@ -54,14 +55,15 @@ import org.junit.rules.RuleChain;
 @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
 public class CleanableHistoricBatchReportTest {
 
-  public ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
+  protected ProcessEngineBootstrapRule bootstrapRule = new ProcessEngineBootstrapRule();
+  public ProcessEngineRule engineRule = new ProvidedProcessEngineRule(bootstrapRule);
   public ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
   protected MigrationTestRule migrationRule = new MigrationTestRule(engineRule);
   protected BatchMigrationHelper migrationHelper = new BatchMigrationHelper(engineRule, migrationRule);
   protected BatchModificationHelper modificationHelper = new BatchModificationHelper(engineRule);
 
   @Rule
-  public RuleChain ruleChain = RuleChain.outerRule(testRule).around(engineRule).around(migrationRule);
+  public RuleChain ruleChain = RuleChain.outerRule(bootstrapRule).around(testRule).around(engineRule).around(migrationRule);
 
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
   protected HistoryService historyService;
@@ -72,7 +74,7 @@ public class CleanableHistoricBatchReportTest {
   @Before
   public void setUp() {
     historyService = engineRule.getHistoryService();
-    processEngineConfiguration = engineRule.getProcessEngineConfiguration();
+    processEngineConfiguration = (ProcessEngineConfigurationImpl)bootstrapRule.getProcessEngine().getProcessEngineConfiguration();
     repositoryService = engineRule.getRepositoryService();
     runtimeService = engineRule.getRuntimeService();
     managementService = engineRule.getManagementService();
@@ -80,6 +82,7 @@ public class CleanableHistoricBatchReportTest {
 
   @After
   public void cleanUp() {
+    ClockUtil.reset();
     migrationHelper.removeAllRunningAndHistoricBatches();
     processEngineConfiguration.setBatchOperationHistoryTimeToLive(null);
     processEngineConfiguration.setBatchOperationsForHistoryCleanup(null);
@@ -95,7 +98,7 @@ public class CleanableHistoricBatchReportTest {
     processEngineConfiguration.setBatchOperationsForHistoryCleanup(map);
     processEngineConfiguration.initHistoryCleanup();
 
-    Date startDate = ClockUtil.getCurrentTime();
+    Date startDate = new Date();
     int daysInThePast = -11;
     ClockUtil.setCurrentTime(DateUtils.addDays(startDate, daysInThePast));
 
@@ -141,7 +144,7 @@ public class CleanableHistoricBatchReportTest {
       managementService.deleteBatch(batchIds2.get(i), false);
     }
 
-    ClockUtil.setCurrentTime(new Date());
+    ClockUtil.setCurrentTime(DateUtils.addSeconds(startDate, 1));
 
     // when
     List<HistoricBatch> historicList = historyService.createHistoricBatchQuery().list();
@@ -171,7 +174,7 @@ public class CleanableHistoricBatchReportTest {
     processEngineConfiguration.initHistoryCleanup();
     assertNull(processEngineConfiguration.getBatchOperationHistoryTimeToLive());
 
-    Date startDate = ClockUtil.getCurrentTime();
+    Date startDate = new Date();
     int daysInThePast = -11;
     ClockUtil.setCurrentTime(DateUtils.addDays(startDate, daysInThePast));
 
@@ -217,7 +220,7 @@ public class CleanableHistoricBatchReportTest {
       managementService.deleteBatch(batchIds2.get(i), false);
     }
 
-    ClockUtil.setCurrentTime(new Date());
+    ClockUtil.setCurrentTime(DateUtils.addSeconds(startDate, 1));
 
     // when
     List<HistoricBatch> historicList = historyService.createHistoricBatchQuery().list();
@@ -231,7 +234,6 @@ public class CleanableHistoricBatchReportTest {
       } else if (result.getBatchType().equals("instance-modification")) {
         checkResultNumbers(result, 1, 1, modOperationsTTL);
       } else if (result.getBatchType().equals("instance-deletion")) {
-        System.out.println(result);
         checkResultNumbers(result, delOperationsTTL, 18, delOperationsTTL);
       }
     }
@@ -242,7 +244,7 @@ public class CleanableHistoricBatchReportTest {
     processEngineConfiguration.initHistoryCleanup();
     assertNull(processEngineConfiguration.getBatchOperationHistoryTimeToLive());
 
-    Date startDate = ClockUtil.getCurrentTime();
+    Date startDate = new Date();
     int daysInThePast = -11;
     ClockUtil.setCurrentTime(DateUtils.addDays(startDate, daysInThePast));
 
@@ -263,7 +265,7 @@ public class CleanableHistoricBatchReportTest {
       managementService.deleteBatch(batchIds2.get(i), false);
     }
 
-    ClockUtil.setCurrentTime(new Date());
+    ClockUtil.setCurrentTime(DateUtils.addSeconds(startDate, 1));
 
     // when
     List<HistoricBatch> historicList = historyService.createHistoricBatchQuery().list();
@@ -301,7 +303,7 @@ public class CleanableHistoricBatchReportTest {
     processEngineConfiguration.initHistoryCleanup();
     assertNotNull(processEngineConfiguration.getBatchOperationHistoryTimeToLive());
 
-    Date startDate = ClockUtil.getCurrentTime();
+    Date startDate = new Date();
     int daysInThePast = -11;
     ClockUtil.setCurrentTime(DateUtils.addDays(startDate, daysInThePast));
 
@@ -322,7 +324,7 @@ public class CleanableHistoricBatchReportTest {
       managementService.deleteBatch(batchId, false);
     }
 
-    ClockUtil.setCurrentTime(new Date());
+    ClockUtil.setCurrentTime(DateUtils.addSeconds(startDate, 1));
 
     // assume
     List<HistoricBatch> historicList = historyService.createHistoricBatchQuery().list();

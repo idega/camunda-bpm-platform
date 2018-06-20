@@ -14,9 +14,10 @@ package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
-import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.externaltask.ExternalTask;
@@ -25,6 +26,7 @@ import org.camunda.bpm.engine.impl.bpmn.behavior.ExternalTaskActivityBehavior;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
+import org.camunda.bpm.engine.impl.db.HasDbReferences;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.incident.IncidentContext;
 import org.camunda.bpm.engine.impl.incident.IncidentHandler;
@@ -43,7 +45,7 @@ import static org.camunda.bpm.engine.impl.util.StringUtil.toByteArray;
  * @author Askar Akhmerov
  *
  */
-public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision {
+public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision, HasDbReferences {
 
   protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
   private static final String EXCEPTION_NAME = "externalTask.exceptionByteArray";
@@ -79,6 +81,7 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
 
   protected ExecutionEntity execution;
 
+  protected String businessKey;
 
   public String getId() {
     return id;
@@ -187,6 +190,15 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     this.priority = priority;
   }
 
+  @Override
+  public String getBusinessKey() {
+    return businessKey;
+  }
+
+  public void setBusinessKey(String businessKey) {
+    this.businessKey = businessKey;
+  }
+
   public Object getPersistentState() {
     Map<String, Object> persistentState = new  HashMap<String, Object>();
     persistentState.put("topic", topicName);
@@ -293,13 +305,17 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     }
   }
 
-  public void complete(Map<String, Object> variables) {
+  public void complete(Map<String, Object> variables, Map<String, Object> localVariables) {
     ensureActive();
 
     ExecutionEntity associatedExecution = getExecution();
 
     if (variables != null) {
       associatedExecution.setVariables(variables);
+    }
+
+    if (localVariables != null) {
+      associatedExecution.setVariablesLocal(localVariables);
     }
 
     deleteFromExecutionAndRuntimeTable();
@@ -329,17 +345,17 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     setRetriesAndManageIncidents(retries);
     produceHistoricExternalTaskFailedEvent();
   }
-  
+
   public void bpmnError(String errorCode) {
     ensureActive();
     ActivityExecution activityExecution = getExecution();
     BpmnError bpmnError = new BpmnError(errorCode);
-    try {      
+    try {
       ExternalTaskActivityBehavior behavior = ((ExternalTaskActivityBehavior) activityExecution.getActivity().getActivityBehavior());
-      behavior.propagateBpmnError(bpmnError, activityExecution);      
+      behavior.propagateBpmnError(bpmnError, activityExecution);
     } catch (Exception ex) {
       throw ProcessEngineLogger.CMD_LOGGER.exceptionBpmnErrorPropagationFailed(errorCode, ex);
-    }    
+    }
   }
 
   public void setRetriesAndManageIncidents(int retries) {
@@ -409,7 +425,7 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
       throw LOG.suspendedEntityException(EntityTypes.EXTERNAL_TASK, id);
     }
   }
-  
+
   @Override
   public String toString() {
     return "ExternalTaskEntity ["
@@ -475,5 +491,25 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     ensureActive();
     long newTime = ClockUtil.getCurrentTime().getTime() + newLockExpirationTime;
     this.lockExpirationTime = new Date(newTime);
+  }
+
+  @Override
+  public Set<String> getReferencedEntityIds() {
+    Set<String> referencedEntityIds = new HashSet<String>();
+    return referencedEntityIds;
+  }
+
+  @Override
+  public Map<String, Class> getReferencedEntitiesIdAndClass() {
+    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+
+    if (executionId != null) {
+      referenceIdAndClass.put(executionId, ExecutionEntity.class);
+    }
+    if (errorDetailsByteArrayId != null) {
+      referenceIdAndClass.put(errorDetailsByteArrayId, ByteArrayEntity.class);
+    }
+
+    return referenceIdAndClass;
   }
 }

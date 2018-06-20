@@ -14,14 +14,19 @@ package org.camunda.bpm.engine.impl.identity.db;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
+import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
+import org.camunda.bpm.engine.AuthenticationException;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.User;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.identity.WritableIdentityProvider;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
@@ -29,6 +34,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.MembershipEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantMembershipEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 
 /**
  * <p>{@link WritableIdentityProvider} implementation backed by a
@@ -64,7 +70,7 @@ public class DbIdentityServiceProvider extends DbReadOnlyIdentityServiceProvider
     return userEntity;
   }
 
-  public void deleteUser(String userId) {
+  public void deleteUser(final String userId) {
     checkAuthorization(Permissions.DELETE, Resources.USER, userId);
     UserEntity user = findUserById(userId);
     if(user != null) {
@@ -72,7 +78,87 @@ public class DbIdentityServiceProvider extends DbReadOnlyIdentityServiceProvider
       deleteTenantMembershipsOfUser(userId);
 
       deleteAuthorizations(Resources.USER, userId);
+
+      Context.getCommandContext().runWithoutAuthorization(new Callable<Void>() {
+        @Override
+        public Void call() throws Exception {
+          final List<Tenant> tenants = createTenantQuery().userMember(userId).list();
+          if (tenants != null && !tenants.isEmpty()) {
+            for (Tenant tenant : tenants) {
+              deleteAuthorizationsForUser(Resources.TENANT, tenant.getId(), userId);
+            }
+          }
+          return null;
+        }
+      });
+
       getDbEntityManager().delete(user);
+    }
+  }
+
+  public boolean checkPassword(String userId, String password) {
+    UserEntity user = findUserById(userId);
+    if (user == null || password == null) {
+      return false;
+    }
+
+    if (isUserLocked(user)) {
+      throw new AuthenticationException(userId, user.getLockExpirationTime());
+    }
+
+    if (matchPassword(password, user)) {
+      unlockUser(user);
+      return true;
+    }
+    else {
+      lockUser(user);
+      return false;
+    }
+  }
+
+  protected boolean isUserLocked(UserEntity user) {
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+
+    int maxAttempts = processEngineConfiguration.getLoginMaxAttempts();
+    int attempts = user.getAttempts();
+
+    if (attempts >= maxAttempts) {
+      throw new AuthenticationException(user.getId());
+    }
+
+    Date lockExpirationTime = user.getLockExpirationTime();
+    Date currentTime = ClockUtil.getCurrentTime();
+
+    return lockExpirationTime != null && lockExpirationTime.after(currentTime);
+  }
+
+  protected void lockUser(UserEntity user) {
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+
+    int max = processEngineConfiguration.getLoginDelayMaxTime();
+    int baseTime = processEngineConfiguration.getLoginDelayBase();
+    int factor = processEngineConfiguration.getLoginDelayFactor();
+    int attempts = user.getAttempts() + 1;
+
+    long delay = (long) (baseTime * Math.pow(factor, attempts - 1));
+    delay = Math.min(delay, max) * 1000;
+
+    long currentTime = ClockUtil.getCurrentTime().getTime();
+    Date lockExpirationTime = new Date(currentTime + delay);
+
+    getIdentityInfoManager().updateUserLock(user, attempts, lockExpirationTime);
+  }
+
+  public void unlockUser(String userId) {
+    UserEntity user = findUserById(userId);
+    if(user != null) {
+      unlockUser(user);
+    }
+  }
+
+  protected void unlockUser(UserEntity user) {
+    if (user.getAttempts() > 0 || user.getLockExpirationTime() != null) {
+      getIdentityInfoManager().updateUserLock(user, 0, null);
     }
   }
 
@@ -96,7 +182,7 @@ public class DbIdentityServiceProvider extends DbReadOnlyIdentityServiceProvider
     return groupEntity;
   }
 
-  public void deleteGroup(String groupId) {
+  public void deleteGroup(final String groupId) {
     checkAuthorization(Permissions.DELETE, Resources.GROUP, groupId);
     GroupEntity group = findGroupById(groupId);
     if(group != null) {
@@ -104,6 +190,19 @@ public class DbIdentityServiceProvider extends DbReadOnlyIdentityServiceProvider
       deleteTenantMembershipsOfGroup(groupId);
 
       deleteAuthorizations(Resources.GROUP, groupId);
+
+      Context.getCommandContext().runWithoutAuthorization(new Callable<Void>() {
+        @Override
+        public Void call() throws Exception {
+          final List<Tenant> tenants = createTenantQuery().groupMember(groupId).list();
+          if (tenants != null && !tenants.isEmpty()) {
+            for (Tenant tenant : tenants) {
+              deleteAuthorizationsForGroup(Resources.TENANT, tenant.getId(), groupId);
+            }
+          }
+          return null;
+        }
+      });
       getDbEntityManager().delete(group);
     }
   }

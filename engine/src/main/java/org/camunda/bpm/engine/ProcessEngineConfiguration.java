@@ -19,6 +19,7 @@ import javax.sql.DataSource;
 
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
+import org.camunda.bpm.engine.impl.BootstrapEngineCommand;
 import org.camunda.bpm.engine.impl.HistoryLevelSetupCommand;
 import org.camunda.bpm.engine.impl.SchemaOperationsProcessEngineBuild;
 import org.camunda.bpm.engine.impl.cfg.BeansConfigurationHelper;
@@ -212,6 +213,7 @@ public abstract class ProcessEngineConfiguration {
   protected int jdbcPingConnectionNotUsedFor;
   protected DataSource dataSource;
   protected SchemaOperationsCommand schemaOperationsCommand = new SchemaOperationsProcessEngineBuild();
+  protected ProcessEngineBootstrapCommand bootstrapCommand = new BootstrapEngineCommand();
   protected HistoryLevelSetupCommand historyLevelCommand = new HistoryLevelSetupCommand();
   protected boolean transactionsExternallyManaged = false;
   /** the number of seconds the jdbc driver will wait for a response from the database */
@@ -269,6 +271,15 @@ public abstract class ProcessEngineConfiguration {
   protected ValueTypeResolver valueTypeResolver;
 
   protected String authorizationCheckRevokes = AUTHORIZATION_CHECK_REVOKE_AUTO;
+
+  /**
+   * A parameter used for defining acceptable values for the User, Group
+   * and Tenant IDs. The pattern can be defined by using the standard
+   * Java Regular Expression syntax should be used.
+   *
+   * <p>By default only alphanumeric values will be accepted.</p>
+   */
+  protected String resourceWhitelistPattern =  "[\\w-]+";
 
   /**
    * If the value of this flag is set <code>true</code> then the process engine
@@ -441,6 +452,14 @@ public abstract class ProcessEngineConfiguration {
 
   public void setSchemaOperationsCommand(SchemaOperationsCommand schemaOperationsCommand) {
     this.schemaOperationsCommand = schemaOperationsCommand;
+  }
+
+  public ProcessEngineBootstrapCommand getProcessEngineBootstrapCommand() {
+    return bootstrapCommand;
+  }
+
+  public void setProcessEngineBootstrapCommand(ProcessEngineBootstrapCommand bootstrapCommand) {
+    this.bootstrapCommand = bootstrapCommand;
   }
 
   public HistoryLevelSetupCommand getHistoryLevelCommand() {
@@ -719,6 +738,14 @@ public abstract class ProcessEngineConfiguration {
   public ProcessEngineConfiguration setTenantCheckEnabled(boolean isTenantCheckEnabled) {
     this.tenantCheckEnabled = isTenantCheckEnabled;
     return this;
+  }
+
+  public String getResourceWhitelistPattern() {
+    return resourceWhitelistPattern;
+  }
+
+  public void setResourceWhitelistPattern(String resourceWhitelistPattern) {
+    this.resourceWhitelistPattern = resourceWhitelistPattern;
   }
 
   public int getDefaultNumberOfRetries() {

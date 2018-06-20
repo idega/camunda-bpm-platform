@@ -1,7 +1,9 @@
 package org.camunda.bpm.engine.impl.jobexecutor.historycleanup;
 
 import java.util.Date;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorLogger;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
@@ -15,6 +17,8 @@ import org.camunda.bpm.engine.impl.util.json.JSONObject;
  */
 public class HistoryCleanupJobHandler implements JobHandler<HistoryCleanupJobHandlerConfiguration> {
 
+  private final static JobExecutorLogger LOG = ProcessEngineLogger.JOB_EXECUTOR_LOGGER;
+
   public static final String TYPE = "history-cleanup";
 
   @Override
@@ -24,16 +28,14 @@ public class HistoryCleanupJobHandler implements JobHandler<HistoryCleanupJobHan
 
   @Override
   public void execute(HistoryCleanupJobHandlerConfiguration configuration, ExecutionEntity execution, CommandContext commandContext, String tenantId) {
-    //find JobEntity
-    JobEntity jobEntity = commandContext.getJobManager().findJobByHandlerType(getType());
-
+    JobEntity jobEntity = commandContext.getCurrentJob();
     boolean rescheduled = false;
 
     if (configuration.isImmediatelyDue()
         || (HistoryCleanupHelper.isBatchWindowConfigured(commandContext)
-            && HistoryCleanupHelper.isWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext)) ) {
+            && HistoryCleanupHelper.isWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext.getProcessEngineConfiguration())) ) {
       //find data to delete
-      final HistoryCleanupBatch nextBatch = HistoryCleanupHelper.getNextBatch(commandContext);
+      final HistoryCleanupBatch nextBatch = HistoryCleanupHelper.getNextBatch(commandContext, configuration);
       if (nextBatch.size() >= getBatchSizeThreshold(commandContext)) {
 
         //delete bunch of data
@@ -49,10 +51,10 @@ public class HistoryCleanupJobHandler implements JobHandler<HistoryCleanupJobHan
           nextBatch.performCleanup();
         }
         //not enough data for cleanup was found
-        if (HistoryCleanupHelper.isWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext)) {
+        if (HistoryCleanupHelper.isWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext.getProcessEngineConfiguration())) {
           //reschedule after some delay
           Date nextRunDate = configuration.getNextRunWithDelay(ClockUtil.getCurrentTime());
-          if (HistoryCleanupHelper.isWithinBatchWindow(nextRunDate, commandContext)) {
+          if (HistoryCleanupHelper.isWithinBatchWindow(nextRunDate, commandContext.getProcessEngineConfiguration())) {
             commandContext.getJobManager().reschedule(jobEntity, nextRunDate);
             rescheduled = true;
             incrementCountEmptyRuns(configuration, jobEntity);
@@ -72,7 +74,14 @@ public class HistoryCleanupJobHandler implements JobHandler<HistoryCleanupJobHan
   }
 
   private void rescheduleRegularCall(CommandContext commandContext, JobEntity jobEntity) {
-    commandContext.getJobManager().reschedule(jobEntity, HistoryCleanupHelper.getNextRunWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext));
+    final BatchWindow nextBatchWindow = commandContext.getProcessEngineConfiguration().getBatchWindowManager()
+      .getNextBatchWindow(ClockUtil.getCurrentTime(), commandContext.getProcessEngineConfiguration());
+    if (nextBatchWindow != null) {
+      commandContext.getJobManager().reschedule(jobEntity, nextBatchWindow.getStart());
+    } else {
+      LOG.warnHistoryCleanupBatchWindowNotFound();
+      suspendJob(jobEntity);
+    }
   }
 
   private void suspendJob(JobEntity jobEntity) {

@@ -12,11 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.camunda.bpm.engine.externaltask.LockedExternalTask;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -45,6 +41,7 @@ public class FetchExternalTasksCmd implements Command<List<LockedExternalTask>> 
   protected int maxResults;
   protected boolean usePriority;
   protected Map<String, TopicFetchInstruction> fetchInstructions = new HashMap<String, TopicFetchInstruction>();
+  protected boolean filterByBusinessKey;
 
   public FetchExternalTasksCmd(String workerId, int maxResults, Map<String, TopicFetchInstruction> instructions) {
     this(workerId, maxResults, instructions, false);
@@ -54,6 +51,15 @@ public class FetchExternalTasksCmd implements Command<List<LockedExternalTask>> 
     this.workerId = workerId;
     this.maxResults = maxResults;
     this.fetchInstructions = instructions;
+    this.filterByBusinessKey = false;
+    this.usePriority = usePriority;
+  }
+
+  public FetchExternalTasksCmd(String workerId, int maxResults, Map<String, TopicFetchInstruction> instructions, boolean filterByBusinessKey, boolean usePriority) {
+    this.workerId = workerId;
+    this.maxResults = maxResults;
+    this.fetchInstructions = instructions;
+    this.filterByBusinessKey = filterByBusinessKey;
     this.usePriority = usePriority;
   }
 
@@ -61,9 +67,13 @@ public class FetchExternalTasksCmd implements Command<List<LockedExternalTask>> 
   public List<LockedExternalTask> execute(CommandContext commandContext) {
     validateInput();
 
+    for (TopicFetchInstruction instruction : fetchInstructions.values()) {
+      instruction.ensureVariablesInitialized();
+    }
+
     List<ExternalTaskEntity> externalTasks = commandContext
       .getExternalTaskManager()
-      .selectExternalTasksForTopics(fetchInstructions.keySet(), maxResults, usePriority);
+      .selectExternalTasksForTopics(fetchInstructions.values(), filterByBusinessKey, maxResults, usePriority);
 
     final List<LockedExternalTask> result = new ArrayList<LockedExternalTask>();
 
@@ -73,7 +83,7 @@ public class FetchExternalTasksCmd implements Command<List<LockedExternalTask>> 
       entity.lock(workerId, fetchInstruction.getLockDuration());
 
       LockedExternalTaskImpl resultTask = LockedExternalTaskImpl.fromEntity(entity,
-          fetchInstruction.getVariablesToFetch(), fetchInstruction.isDeserializeVariables());
+          fetchInstruction.getVariablesToFetch(), fetchInstruction.isLocalVariables() , fetchInstruction.isDeserializeVariables());
 
       result.add(resultTask);
     }

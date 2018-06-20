@@ -18,6 +18,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.ibatis.executor.BatchExecutorException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
@@ -85,6 +86,20 @@ public class ExceptionUtil {
     return false;
   }
 
+  public static boolean checkConstraintViolationException(ProcessEngineException exception) {
+    List<SQLException> sqlExceptionList = findRelatedSqlExceptions(exception);
+    for (SQLException ex: sqlExceptionList) {
+      if (ex.getMessage().contains("constraint")
+        || ex.getMessage().contains("violat")
+        || ex.getMessage().toLowerCase().contains("duplicate")
+        || ex.getMessage().contains("ORA-00001")
+        || ex.getMessage().contains("SQLCODE=-803, SQLSTATE=23505")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   public static List<SQLException> findRelatedSqlExceptions(Throwable exception) {
     List<SQLException> sqlExceptionList = new ArrayList<SQLException>();
     Throwable cause = exception;
@@ -102,4 +117,71 @@ public class ExceptionUtil {
     return sqlExceptionList;
   }
 
+  public static boolean checkForeignKeyConstraintViolation(Throwable cause) {
+
+    List<SQLException> relatedSqlExceptions = findRelatedSqlExceptions(cause);
+    for (SQLException exception : relatedSqlExceptions) {
+
+      // PostgreSQL doesn't allow for a proper check
+      if ("23503".equals(exception.getSQLState()) && exception.getErrorCode() == 0) {
+        return false;
+      } else if (
+        // SqlServer
+        (exception.getMessage().toLowerCase().contains("foreign key constraint")
+          || ("23000".equals(exception.getSQLState()) && exception.getErrorCode() == 547))
+        // MySql, MariaDB & PostgreSQL
+        || (exception.getMessage().toLowerCase().contains("foreign key constraint")
+          // MySql & MariaDB
+          || ("23000".equals(exception.getSQLState()) && exception.getErrorCode() == 1452))
+        // Oracle & H2
+        || (exception.getMessage().toLowerCase().contains("integrity constraint")
+          // Oracle
+          || ("23000".equals(exception.getSQLState()) && exception.getErrorCode() == 2291)
+          // H2
+          || ("23506".equals(exception.getSQLState()) && exception.getErrorCode() == 23506))
+        // DB2
+        || (exception.getMessage().toLowerCase().contains("sqlstate=23503") && exception.getMessage().toLowerCase().contains("sqlcode=-530"))
+        ) {
+
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public static boolean checkVariableIntegrityViolation(Throwable cause) {
+
+    List<SQLException> relatedSqlExceptions = findRelatedSqlExceptions(cause);
+    for (SQLException exception : relatedSqlExceptions) {
+      if (
+        // MySQL & MariaDB
+        (exception.getMessage().toLowerCase().contains("act_uniq_variable") && "23000".equals(exception.getSQLState()) && exception.getErrorCode() == 1062)
+        // PostgreSQL
+        || (exception.getMessage().toLowerCase().contains("act_uniq_variable") && "23505".equals(exception.getSQLState()) && exception.getErrorCode() == 0)
+        // SqlServer
+        || (exception.getMessage().toLowerCase().contains("act_uniq_variable") && "23000".equals(exception.getSQLState()) && exception.getErrorCode() == 2601)
+        // Oracle
+        || (exception.getMessage().toLowerCase().contains("act_uniq_variable") && "23000".equals(exception.getSQLState()) && exception.getErrorCode() == 1)
+        // H2
+        || (exception.getMessage().toLowerCase().contains("act_uniq_variable_index_c") && "23505".equals(exception.getSQLState()) && exception.getErrorCode() == 23505)
+        ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  public static BatchExecutorException findBatchExecutorException(Throwable exception) {
+    Throwable cause = exception;
+    do {
+      if (cause instanceof BatchExecutorException) {
+        return (BatchExecutorException) cause;
+      }
+      cause = cause.getCause();
+    } while (cause != null);
+
+    return null;
+  }
 }

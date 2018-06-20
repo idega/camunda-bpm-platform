@@ -28,7 +28,7 @@ import org.camunda.bpm.engine.impl.util.CompareUtil;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmptyString;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.*;
 
 /**
  * @author Tom Baeyens
@@ -47,6 +47,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected boolean finished = false;
   protected boolean unfinished = false;
   protected boolean withIncidents = false;
+  protected boolean withRootIncidents = false;
   protected String incidentType;
   protected String incidentStatus;
   protected String incidentMessage;
@@ -70,6 +71,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected String[] tenantIds;
   protected String[] executedActivityIds;
   protected String[] activeActivityIds;
+  protected String state;
 
   protected String caseInstanceId;
 
@@ -134,6 +136,11 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   public HistoricProcessInstanceQuery withIncidents() {
     this.withIncidents = true;
 
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery withRootIncidents() {
+    this.withRootIncidents = true;
     return this;
   }
 
@@ -390,6 +397,10 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return this.incidentMessageLike;
   }
 
+  public boolean isWithRootIncidents() {
+    return withRootIncidents;
+  }
+
   // below is deprecated and to be removed in 5.12
 
   protected Date startDateBy;
@@ -501,4 +512,38 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return this;
   }
 
+  @Override
+  public HistoricProcessInstanceQuery active() {
+    ensureNull(BadUserRequestException.class, "Already querying for historic process instance with another state", state, state);
+    state = HistoricProcessInstance.STATE_ACTIVE;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery suspended() {
+    ensureNull(BadUserRequestException.class, "Already querying for historic process instance with another state", state, state);
+    state = HistoricProcessInstance.STATE_SUSPENDED;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery completed() {
+    ensureNull(BadUserRequestException.class, "Already querying for historic process instance with another state", state, state);
+    state = HistoricProcessInstance.STATE_COMPLETED;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery externallyTerminated() {
+    ensureNull(BadUserRequestException.class, "Already querying for historic process instance with another state", state, state);
+    state = HistoricProcessInstance.STATE_EXTERNALLY_TERMINATED;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery internallyTerminated() {
+    ensureNull(BadUserRequestException.class, "Already querying for historic process instance with another state", state, state);
+    state = HistoricProcessInstance.STATE_INTERNALLY_TERMINATED;
+    return this;
+  }
 }

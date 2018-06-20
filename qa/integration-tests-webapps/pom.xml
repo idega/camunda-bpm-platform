@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.9.0-SNAPSHOT</version>
+    <version>7.10.0-SNAPSHOT</version>
   </parent>
 
   <properties>
@@ -183,6 +183,7 @@
         <dependency>
           <groupId>org.camunda.bpm</groupId>
           <artifactId>camunda-engine-rest</artifactId>
+          <classifier>jbossas7</classifier>
           <scope>test</scope>
           <type>war</type>
           <version>${project.version}</version>
@@ -261,6 +262,7 @@
                   <groupId>org.camunda.bpm</groupId>
                   <artifactId>camunda-engine-rest</artifactId>
                   <type>war</type>
+                  <classifier>jbossas7</classifier>
                   <pingURL>http://localhost:${jboss.http.port}/engine-rest/engine/default/process-definition</pingURL>
                   <pingTimeout>${cargo.deploy.timeout}</pingTimeout>
                   <properties>
@@ -286,7 +288,6 @@
                   </properties>
                 </deployable>
               </deployables>
-              <wait>false</wait>
             </configuration>
           </plugin>
           <plugin>
@@ -308,6 +309,13 @@
       <id>wildfly10</id>
       <properties>
         <container.id>wildfly10x</container.id>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>wildfly11</id>
+      <properties>
+        <container.id>wildfly11x</container.id>
       </properties>
     </profile>
 
@@ -336,6 +344,7 @@
           <groupId>org.camunda.bpm</groupId>
           <artifactId>camunda-engine-rest</artifactId>
           <version>${project.version}</version>
+          <classifier>wildfly</classifier>
           <scope>test</scope>
           <type>war</type>
         </dependency>
@@ -345,7 +354,6 @@
           <plugin>
             <groupId>org.codehaus.cargo</groupId>
             <artifactId>cargo-maven2-plugin</artifactId>
-            <version>1.4.19</version>
             <executions>
               <execution>
                 <id>start-container</id>
@@ -390,6 +398,7 @@
                 <deployable>
                   <groupId>org.camunda.bpm</groupId>
                   <artifactId>camunda-engine-rest</artifactId>
+                  <classifier>wildfly</classifier>
                   <type>war</type>
                   <pingURL>http://localhost:${jboss.http.port}/engine-rest/engine/default/process-definition</pingURL>
                   <pingTimeout>${cargo.deploy.timeout}</pingTimeout>
@@ -402,7 +411,6 @@
                   <pingTimeout>${cargo.deploy.timeout}</pingTimeout>
                 </deployable>
               </deployables>
-              <wait>false</wait>
             </configuration>
           </plugin>
           <plugin>
@@ -513,7 +521,6 @@
                   </properties>
                 </deployable>
               </deployables>
-              <wait>false</wait>
             </configuration>
           </plugin>
         </plugins>
@@ -754,7 +761,6 @@
           <plugin>
             <groupId>org.codehaus.cargo</groupId>
             <artifactId>cargo-maven2-plugin</artifactId>
-            <version>1.4.19-SNAPSHOT</version>
             <configuration>
               <skip>true</skip>
             </configuration>

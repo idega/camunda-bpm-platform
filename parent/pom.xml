@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-bom</artifactId>
-    <version>7.9.0-SNAPSHOT</version>
+    <version>7.10.0-SNAPSHOT</version>
     <relativePath>../bom</relativePath>
   </parent>
 
@@ -24,6 +24,7 @@
     <version.logback>1.1.2</version.logback>
     <version.slf4j>1.7.7</version.slf4j>
     <version.resteasy>2.3.5.Final</version.resteasy>
+    <version.resteasy3>3.0.12.Final</version.resteasy3>
     <version.jersey2>2.25.1</version.jersey2>
 
     <version.commonj>1.1.0</version.commonj>
@@ -34,9 +35,11 @@
     <version.wildfly>8.2.1.Final</version.wildfly>
     <version.wildfly10>10.1.0.Final</version.wildfly10>
     <version.wildfly10.core>2.2.0.Final</version.wildfly10.core>
+    <version.wildfly11>11.0.0.Final</version.wildfly11>
+    <version.wildfly11.core>3.0.8.Final</version.wildfly11.core>
 
     <version.glassfish>3.1.2</version.glassfish>
-    <version.tomcat>8.0.47</version.tomcat>
+    <version.tomcat>9.0.5</version.tomcat>
 
     <version.arquillian>1.1.10.Final</version.arquillian>
     <version.shrinkwrap.resolvers>2.2.2</version.shrinkwrap.resolvers>
@@ -45,8 +48,6 @@
     <version.jboss-javaee-spec>3.0.2.Final</version.jboss-javaee-spec>
 
     <version.java.wildfly>1.7</version.java.wildfly>
-    <version.java.wildfly10>1.8</version.java.wildfly10>
-
 
     <!-- OSGi bundles properties -->
     <camunda.artifact />
@@ -118,7 +119,7 @@
       <dependency>
         <groupId>commons-fileupload</groupId>
         <artifactId>commons-fileupload</artifactId>
-        <version>1.3.2</version>
+        <version>1.3.3</version>
       </dependency>
 
       <dependency>
@@ -187,7 +188,7 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-email</artifactId>
-        <version>1.2</version>
+        <version>1.5</version>
       </dependency>
         <!-- Web service -->
       <dependency>
@@ -209,7 +210,7 @@
       <dependency>
         <groupId>org.codehaus.groovy</groupId>
         <artifactId>groovy-all</artifactId>
-        <version>2.4.5</version>
+        <version>2.4.13</version>
       </dependency>
       <dependency>
         <groupId>org.json</groupId>
@@ -583,7 +584,7 @@
         <plugin>
           <groupId>org.codehaus.cargo</groupId>
           <artifactId>cargo-maven2-plugin</artifactId>
-          <version>1.4.5</version>
+          <version>1.6.6</version>
         </plugin>
         <plugin>
           <groupId>net.kennychua</groupId>

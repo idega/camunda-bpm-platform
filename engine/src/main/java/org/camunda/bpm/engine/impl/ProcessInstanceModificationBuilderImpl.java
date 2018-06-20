@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.cmd.AbstractInstantiationCmd;
 import org.camunda.bpm.engine.impl.cmd.AbstractProcessInstanceModificationCommand;
@@ -26,6 +27,7 @@ import org.camunda.bpm.engine.impl.cmd.ActivityAfterInstantiationCmd;
 import org.camunda.bpm.engine.impl.cmd.ActivityBeforeInstantiationCmd;
 import org.camunda.bpm.engine.impl.cmd.ActivityCancellationCmd;
 import org.camunda.bpm.engine.impl.cmd.ActivityInstanceCancellationCmd;
+import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceAsyncCmd;
 import org.camunda.bpm.engine.impl.cmd.ModifyProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.TransitionInstanceCancellationCmd;
 import org.camunda.bpm.engine.impl.cmd.TransitionInstantiationCmd;
@@ -46,6 +48,7 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   protected CommandContext commandContext;
 
   protected String processInstanceId;
+  protected String modificationReason;
 
   protected boolean skipCustomListeners = false;
   protected boolean skipIoMappings = false;
@@ -65,6 +68,12 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     this.commandContext = commandContext;
   }
 
+  public ProcessInstanceModificationBuilderImpl(CommandContext commandContext, String processInstanceId, String modificationReason) {
+    this(processInstanceId);
+    this.commandContext = commandContext;
+    this.modificationReason = modificationReason;
+  }
+
   public ProcessInstanceModificationBuilderImpl(String processInstanceId) {
     ensureNotNull(NotValidException.class, "processInstanceId", processInstanceId);
     this.processInstanceId = processInstanceId;
@@ -76,7 +85,7 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   @Override
   public ProcessInstanceModificationBuilder cancelActivityInstance(String activityInstanceId) {
     ensureNotNull(NotValidException.class, "activityInstanceId", activityInstanceId);
-    operations.add(new ActivityInstanceCancellationCmd(processInstanceId, activityInstanceId));
+    operations.add(new ActivityInstanceCancellationCmd(processInstanceId, activityInstanceId, this.modificationReason));
     return this;
   }
 
@@ -241,6 +250,19 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     }
   }
 
+  @Override
+  public Batch executeAsync() {
+    return executeAsync(false, false);
+  }
+
+  @Override
+  public Batch executeAsync(boolean skipCustomListeners, boolean skipIoMappings) {
+    this.skipCustomListeners = skipCustomListeners;
+    this.skipIoMappings = skipIoMappings;
+
+    return commandExecutor.execute(new ModifyProcessInstanceAsyncCmd(this));
+  }
+
   public CommandExecutor getCommandExecutor() {
     return commandExecutor;
   }
@@ -281,4 +303,11 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     return processVariables;
   }
 
+  public String getModificationReason() {
+    return modificationReason;
+  }
+
+  public void setModificationReason(String modificationReason) {
+    this.modificationReason = modificationReason;
+  }
 }

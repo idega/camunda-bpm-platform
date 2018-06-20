@@ -48,6 +48,8 @@ public class HistoryCleanupJobDeclaration extends JobDeclaration<HistoryCleanupC
   protected HistoryCleanupJobHandlerConfiguration resolveJobHandlerConfiguration(HistoryCleanupContext context) {
     HistoryCleanupJobHandlerConfiguration config = new HistoryCleanupJobHandlerConfiguration();
     config.setImmediatelyDue(context.isImmediatelyDue());
+    config.setMinuteFrom(context.getMinuteFrom());
+    config.setMinuteTo(context.getMinuteTo());
     return config;
   }
 
@@ -61,7 +63,13 @@ public class HistoryCleanupJobDeclaration extends JobDeclaration<HistoryCleanupC
     if (isImmediatelyDue) {
       return ClockUtil.getCurrentTime();
     } else {
-      return HistoryCleanupHelper.getCurrentOrNextRunWithinBatchWindow(ClockUtil.getCurrentTime(), commandContext);
+      final BatchWindow currentOrNextBatchWindow = commandContext.getProcessEngineConfiguration().getBatchWindowManager()
+        .getCurrentOrNextBatchWindow(ClockUtil.getCurrentTime(), commandContext.getProcessEngineConfiguration());
+      if (currentOrNextBatchWindow != null) {
+        return currentOrNextBatchWindow.getStart();
+      } else {
+        return null;
+      }
     }
   }
 }

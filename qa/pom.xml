@@ -11,7 +11,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.9.0-SNAPSHOT</version>
+    <version>7.10.0-SNAPSHOT</version>
   </parent>
 
   <properties>
@@ -110,6 +110,12 @@
       <id>wildfly10</id>
       <properties>
         <wildfly.runtime.location>../wildfly-runtime/target/server/wildfly-${version.wildfly10}/</wildfly.runtime.location>
+      </properties>
+    </profile>
+    <profile>
+      <id>wildfly11</id>
+      <properties>
+        <wildfly.runtime.location>../wildfly-runtime/target/server/wildfly-${version.wildfly11}/</wildfly.runtime.location>
       </properties>
     </profile>
 

@@ -15,18 +15,22 @@
  */
 package org.camunda.bpm.engine.test.api.runtime.migration;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.camunda.bpm.engine.externaltask.LockedExternalTask;
+import org.camunda.bpm.engine.history.HistoricIncident;
+import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.migration.MigrationPlan;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.api.runtime.FailingDelegate;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
@@ -335,5 +339,71 @@ public class MigrationIncidentTest {
     assertEquals(processInstance2.getProcessDefinitionId(), incident.getProcessDefinitionId());
     assertEquals("custom", incident.getIncidentType());
     assertEquals(processInstance1.getId(), incident.getExecutionId());
+  }
+
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/runtime/migration/calledProcess.bpmn",
+                           "org/camunda/bpm/engine/test/api/runtime/migration/calledProcess_v2.bpmn"})
+  public void historicIncidentRemainsOpenAfterMigration() {
+
+    // Given we create a new process instance
+    ProcessDefinition process1 = engineRule.getRepositoryService()
+        .createProcessDefinitionQuery()
+        .processDefinitionKey("calledProcess")
+        .singleResult();
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceById(process1.getId());
+
+    LockedExternalTask task = engineRule.getExternalTaskService()
+        .fetchAndLock(1, "foo")
+        .topic("foo", 1000L)
+        .execute()
+        .get(0);
+
+    engineRule.getExternalTaskService().handleFailure(task.getId(), "foo", "error", 0, 1000L);
+
+    Incident incidentInProcess = engineRule.getRuntimeService()
+        .createIncidentQuery()
+        .processDefinitionId(process1.getId())
+        .singleResult();
+
+    // when
+    ProcessDefinition process2 = engineRule.getRepositoryService()
+        .createProcessDefinitionQuery()
+        .processDefinitionKey("calledProcessV2")
+        .singleResult();
+
+    MigrationPlan migrationPlan = engineRule.getRuntimeService()
+        .createMigrationPlan(process1.getId(), process2.getId())
+        .mapEqualActivities()
+        .mapActivities("ServiceTask_1p58ywb", "ServiceTask_V2")
+        .build();
+
+    engineRule.getRuntimeService()
+        .newMigration(migrationPlan)
+        .processInstanceIds(processInstance.getId())
+        .execute();
+
+    // then
+    HistoricIncident historicIncidentAfterMigration = engineRule.getHistoryService()
+        .createHistoricIncidentQuery()
+        .singleResult();
+    assertNotNull(historicIncidentAfterMigration);
+    assertNull(historicIncidentAfterMigration.getEndTime());
+    assertTrue(historicIncidentAfterMigration.isOpen());
+
+    HistoricProcessInstance historicProcessInstanceAfterMigration = engineRule.getHistoryService()
+        .createHistoricProcessInstanceQuery()
+        .withIncidents()
+        .incidentStatus("open")
+        .singleResult();
+    assertNotNull(historicProcessInstanceAfterMigration);
+
+    Incident incidentAfterMigration = engineRule.getRuntimeService()
+        .createIncidentQuery()
+        .incidentId(incidentInProcess.getId())
+        .singleResult();
+    assertEquals(process2.getId(), incidentAfterMigration.getProcessDefinitionId());
+    assertEquals("ServiceTask_V2", incidentAfterMigration.getActivityId());
   }
 }

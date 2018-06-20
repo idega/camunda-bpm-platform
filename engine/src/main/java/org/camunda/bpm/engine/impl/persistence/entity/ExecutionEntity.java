@@ -209,7 +209,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
    * persisted reference to the super execution of this execution
    *
    * @See {@link #getSuperExecution()}
-   * @see #setSuperExecution(ExecutionEntity)
+   * @see <code>setSuperExecution(ExecutionEntity)</code>
    */
   protected String superExecutionId;
 
@@ -217,7 +217,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
    * persisted reference to the super case execution of this execution
    *
    * @See {@link #getSuperCaseExecution()}
-   * @see #setSuperCaseExecution(ExecutionEntity)
+   * @see <code>setSuperCaseExecution(ExecutionEntity)</code>
    */
   protected String superCaseExecutionId;
 
@@ -533,11 +533,11 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
       observer.onClear(this);
     }
 
-    // delete all the variable instances
-    removeVariablesLocalInternal();
-
     // delete all the tasks and external tasks
     removeAllTasks();
+
+    // delete all the variable instances
+    removeVariablesLocalInternal();
 
     // remove all jobs
     removeJobs();
@@ -765,7 +765,13 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
   @Override
   public void setProcessDefinition(ProcessDefinitionImpl processDefinition) {
     this.processDefinition = processDefinition;
-    this.processDefinitionId = processDefinition.getId();
+    if (processDefinition != null) {
+      this.processDefinitionId = processDefinition.getId();
+    }
+    else {
+      this.processDefinitionId = null;
+    }
+
   }
 
   // process instance /////////////////////////////////////////////////////////
@@ -1229,6 +1235,10 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     return Context.getCommandContext().getVariableInstanceManager().findVariableInstancesByExecutionId(id);
   }
 
+  public Collection<VariableInstanceEntity> provideVariables(Collection<String> variableNames) {
+    return Context.getCommandContext().getVariableInstanceManager().findVariableInstancesByExecutionIdAndVariableNames(id, variableNames);
+  }
+
   protected boolean isAutoFireHistoryEvents() {
     // as long as the process instance is starting (i.e. before activity instance
     // of the selected initial (start event) is created), the variable scope should
@@ -1497,7 +1507,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     List<EventSubscriptionEntity> result = new ArrayList<EventSubscriptionEntity>(eventSubscriptions.size());
     for (EventSubscriptionEntity eventSubscriptionEntity : eventSubscriptions) {
       if (eventSubscriptionEntity.isSubscriptionForEventType(EventType.COMPENSATE)) {
-        result.add((EventSubscriptionEntity) eventSubscriptionEntity);
+        result.add(eventSubscriptionEntity);
       }
     }
     return result;
@@ -1509,7 +1519,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     for (EventSubscriptionEntity eventSubscriptionEntity : eventSubscriptions) {
       if (eventSubscriptionEntity.isSubscriptionForEventType(EventType.COMPENSATE)
               && activityId.equals(eventSubscriptionEntity.getActivityId())) {
-          result.add((EventSubscriptionEntity) eventSubscriptionEntity);
+          result.add(eventSubscriptionEntity);
         }
     }
     return result;
@@ -1841,6 +1851,26 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     }
 
     return referenceIds;
+  }
+
+  @Override
+  public Map<String, Class> getReferencedEntitiesIdAndClass() {
+    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+
+    if (superExecutionId != null) {
+      referenceIdAndClass.put(this.superExecutionId, ExecutionEntity.class);
+    }
+    if (parentId != null) {
+      referenceIdAndClass.put(this.parentId, ExecutionEntity.class);
+    }
+    if (processInstanceId != null) {
+      referenceIdAndClass.put(this.processInstanceId, ExecutionEntity.class);
+    }
+    if (processDefinitionId != null) {
+      referenceIdAndClass.put(this.processDefinitionId, ProcessDefinitionEntity.class);
+    }
+
+    return referenceIdAndClass;
   }
 
   public int getSuspensionState() {

@@ -14,14 +14,19 @@ package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.HasDbReferences;
 
 /**
  * @author Daniel Meyer
  *
  */
-public class MeterLogEntity implements DbEntity, Serializable {
+public class MeterLogEntity implements DbEntity, HasDbReferences, Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -104,4 +109,15 @@ public class MeterLogEntity implements DbEntity, Serializable {
     return MeterLogEntity.class;
   }
 
+  @Override
+  public Set<String> getReferencedEntityIds() {
+    Set<String> referencedEntityIds = new HashSet<String>();
+    return referencedEntityIds;
+  }
+
+  @Override
+  public Map<String, Class> getReferencedEntitiesIdAndClass() {
+    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+    return referenceIdAndClass;
+  }
 }

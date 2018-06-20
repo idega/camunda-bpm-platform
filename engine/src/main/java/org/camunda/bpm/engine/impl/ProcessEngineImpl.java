@@ -13,21 +13,10 @@
 package org.camunda.bpm.engine.impl;
 
 import java.util.Map;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 
-import org.camunda.bpm.engine.AuthorizationService;
-import org.camunda.bpm.engine.CaseService;
-import org.camunda.bpm.engine.DecisionService;
-import org.camunda.bpm.engine.ExternalTaskService;
-import org.camunda.bpm.engine.FilterService;
-import org.camunda.bpm.engine.FormService;
-import org.camunda.bpm.engine.HistoryService;
-import org.camunda.bpm.engine.IdentityService;
-import org.camunda.bpm.engine.ManagementService;
-import org.camunda.bpm.engine.ProcessEngine;
-import org.camunda.bpm.engine.ProcessEngines;
-import org.camunda.bpm.engine.RepositoryService;
-import org.camunda.bpm.engine.RuntimeService;
-import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.*;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.TransactionContextFactory;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
@@ -41,6 +30,9 @@ import org.camunda.bpm.engine.impl.metrics.reporter.DbMetricsReporter;
  * @author Tom Baeyens
  */
 public class ProcessEngineImpl implements ProcessEngine {
+
+  public static final ReentrantLock LOCK_MONITOR = new ReentrantLock(false);
+  public static final Condition IS_EXTERNAL_TASK_AVAILABLE = LOCK_MONITOR.newCondition();
 
   private final static ProcessEngineLogger LOG = ProcessEngineLogger.INSTANCE;
 
@@ -119,17 +111,17 @@ public class ProcessEngineImpl implements ProcessEngine {
         dbMetricsReporter.start();
       }
     }
-
-    //create history cleanup job
-    if (managementService.getTableMetaData("ACT_RU_JOB") != null) {
-      processEngineConfiguration.getHistoryService().cleanUpHistoryAsync();
-    }
-
   }
 
   protected void executeSchemaOperations() {
     commandExecutorSchemaOperations.execute(processEngineConfiguration.getSchemaOperationsCommand());
     commandExecutorSchemaOperations.execute(processEngineConfiguration.getHistoryLevelCommand());
+
+    try {
+      commandExecutorSchemaOperations.execute(processEngineConfiguration.getProcessEngineBootstrapCommand());
+    } catch (OptimisticLockingException ole) {
+      LOG.historyCleanupJobReconfigurationFailure(ole);
+    }
   }
 
   @Override

@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -107,12 +108,14 @@ public class HistoricCaseInstanceManager extends AbstractHistoricManager {
   }
 
   @SuppressWarnings("unchecked")
-  public List<String> findHistoricCaseInstanceIdsForCleanup(int batchSize) {
-    ListQueryParameterObject parameterObject = new ListQueryParameterObject();
-    parameterObject.setParameter(ClockUtil.getCurrentTime());
-    parameterObject.getOrderingProperties().add(new QueryOrderingProperty(new QueryPropertyImpl("CLOSE_TIME_"), Direction.ASCENDING));
-    parameterObject.setFirstResult(0);
-    parameterObject.setMaxResults(batchSize);
+  public List<String> findHistoricCaseInstanceIdsForCleanup(int batchSize, int minuteFrom, int minuteTo) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("currentTimestamp", ClockUtil.getCurrentTime());
+    if (minuteTo - minuteFrom + 1 < 60) {
+      parameters.put("minuteFrom", minuteFrom);
+      parameters.put("minuteTo", minuteTo);
+    }
+    ListQueryParameterObject parameterObject = new ListQueryParameterObject(parameters, 0, batchSize);
     return getDbEntityManager().selectList("selectHistoricCaseInstanceIdsForCleanup", parameterObject);
   }
 

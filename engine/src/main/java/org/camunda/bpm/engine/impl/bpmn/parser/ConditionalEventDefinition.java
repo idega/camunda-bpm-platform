@@ -33,6 +33,7 @@ public class ConditionalEventDefinition extends EventSubscriptionDeclaration imp
 
   private static final long serialVersionUID = 1L;
 
+  protected String conditionAsString;
   protected final Condition condition;
   protected boolean interrupting;
   protected String variableName;
@@ -78,6 +79,14 @@ public class ConditionalEventDefinition extends EventSubscriptionDeclaration imp
     this.variableEvents = variableEvents;
   }
 
+  public String getConditionAsString() {
+    return conditionAsString;
+  }
+
+  public void setConditionAsString(String conditionAsString) {
+    this.conditionAsString = conditionAsString;
+  }
+
   public boolean shouldEvaluateForVariableEvent(VariableEvent event) {
     return
     ((variableName == null || event.getVariableInstance().getName().equals(variableName))
@@ -89,14 +98,14 @@ public class ConditionalEventDefinition extends EventSubscriptionDeclaration imp
     if (condition != null) {
       return condition.evaluate(execution, execution);
     }
-    throw new IllegalStateException("Condtional event must have a condition!");
+    throw new IllegalStateException("Conditional event must have a condition!");
   }
 
   public boolean tryEvaluate(DelegateExecution execution) {
     if (condition != null) {
       return condition.tryEvaluate(execution, execution);
     }
-    throw new IllegalStateException("Condtional event must have a condition!");
+    throw new IllegalStateException("Conditional event must have a condition!");
   }
 
   public boolean tryEvaluate(VariableEvent variableEvent, DelegateExecution execution) {

@@ -10,7 +10,7 @@ camunda BPM platform is a flexible framework for workflow and process automation
 * Getting Started: https://docs.camunda.org/get-started/
 * User Forum: https://forum.camunda.org/
 * Issue Tracker: https://app.camunda.com/jira
-* Contribution Guildelines: https://camunda.org/contribute/
+* Contribution Guidelines: https://camunda.org/contribute/
 * License: Apache License, Version 2.0  https://www.apache.org/licenses/LICENSE-2.0
 
 Components
@@ -114,7 +114,7 @@ In order to configure the build, compose the profiles for runtime container, tes
 mvn clean install -Pengine-integration,jboss,h2
 ```
 
-For using wildfly as the runtime container you have to additionally specify the wildfly version, either wildfly8 or wildfly10. Example:
+For using wildfly as the runtime container you have to additionally specify the wildfly version: wildfly8, wildfly10 or wildfly11. Example:
 
 ```
 mvn clean install -Pengine-integration,wildfly,wildfly10,h2

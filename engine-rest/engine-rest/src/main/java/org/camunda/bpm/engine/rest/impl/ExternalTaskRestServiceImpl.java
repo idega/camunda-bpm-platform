@@ -40,7 +40,6 @@ import org.camunda.bpm.engine.rest.dto.externaltask.FetchExternalTasksDto.FetchE
 import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
-import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.dto.externaltask.LockedExternalTaskDto;
 import org.camunda.bpm.engine.rest.dto.externaltask.SetRetriesForExternalTasksDto;
 import org.camunda.bpm.engine.rest.sub.externaltask.ExternalTaskResource;
@@ -117,30 +116,9 @@ public class ExternalTaskRestServiceImpl extends AbstractRestProcessEngineAware 
 
   @Override
   public List<LockedExternalTaskDto> fetchAndLock(FetchExternalTasksDto fetchingDto) {
-    ExternalTaskQueryBuilder fetchBuilder = processEngine
-      .getExternalTaskService()
-      .fetchAndLock(fetchingDto.getMaxTasks(), fetchingDto.getWorkerId(), fetchingDto.isUsePriority());
-
-    if (fetchingDto.getTopics() != null) {
-      for (FetchExternalTaskTopicDto topicDto : fetchingDto.getTopics()) {
-        ExternalTaskQueryTopicBuilder topicFetchBuilder =
-            fetchBuilder.topic(topicDto.getTopicName(), topicDto.getLockDuration());
-
-        if (topicDto.getVariables() != null) {
-          topicFetchBuilder = topicFetchBuilder.variables(topicDto.getVariables());
-        }
-
-        if (topicDto.isDeserializeValues()) {
-          topicFetchBuilder = topicFetchBuilder.enableCustomObjectDeserialization();
-        }
-
-        fetchBuilder = topicFetchBuilder;
-      }
-    }
-
-    List<LockedExternalTask> tasks = fetchBuilder.execute();
-
-    return LockedExternalTaskDto.fromLockedExternalTasks(tasks);
+    ExternalTaskQueryBuilder fetchBuilder = fetchingDto.buildQuery(processEngine);
+    List<LockedExternalTask> externalTasks = fetchBuilder.execute();
+    return LockedExternalTaskDto.fromLockedExternalTasks(externalTasks);
   }
 
   @Override

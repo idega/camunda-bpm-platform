@@ -64,7 +64,7 @@ public class JobExecutorLogger extends ProcessEngineLogger {
   }
 
   public void debugAddingNewExclusiveJobToJobExecutorCOntext(String jobId) {
-    logInfo(
+    logDebug(
         "008",
         "Adding new exclusive job to job executor context. Job Id='{}'", jobId);
   }
@@ -172,6 +172,12 @@ public class JobExecutorLogger extends ProcessEngineLogger {
   public void exceptionWhileParsingExpression(String jobId, String exceptionMessage) {
     logWarn(
         "027", "Falling back to default retry strategy. Exception while executing job {}: {}", jobId, exceptionMessage);
+  }
+
+  public void warnHistoryCleanupBatchWindowNotFound() {
+    logWarn(
+      "028",
+      "Batch window for history cleanup was not calculated. History cleanup job(s) will be suspended.");
   }
 
 }

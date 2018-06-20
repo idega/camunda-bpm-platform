@@ -40,7 +40,7 @@ public class AdministratorAuthorizationPlugin extends AbstractProcessEnginePlugi
    * on all built-in resources. */
   protected String administratorGroupName;
 
-  /** The name of the administrator group.
+  /** The name of the administrator user.
    *
    * If this name is set to a non-null and non-empty value,
    * the plugin will create group-level Administrator authorizations
@@ -51,6 +51,9 @@ public class AdministratorAuthorizationPlugin extends AbstractProcessEnginePlugi
 
   public void postInit(ProcessEngineConfigurationImpl processEngineConfiguration) {
     authorizationEnabled = processEngineConfiguration.isAuthorizationEnabled();
+    if (administratorGroupName != null && administratorGroupName.length() > 0) {
+      processEngineConfiguration.getAdminGroups().add(administratorGroupName);
+    }
   }
 
   public void postProcessEngineBuild(ProcessEngine processEngine) {

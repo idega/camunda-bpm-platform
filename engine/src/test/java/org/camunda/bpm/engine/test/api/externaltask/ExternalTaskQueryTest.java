@@ -20,10 +20,7 @@ import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.externalT
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.inverted;
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.verifySorting;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.externaltask.ExternalTask;
@@ -230,6 +227,27 @@ public class ExternalTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(processInstances.get(0).getId(), task.getProcessInstanceId());
   }
 
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
+  public void testQueryByLargeListOfProcessInstanceIdIn() {
+    // given
+    List<String> processInstances = new ArrayList<String>();
+    for (int i = 0; i < 1001; i++) {
+      processInstances.add(runtimeService.startProcessInstanceByKey("oneExternalTaskProcess").getProcessInstanceId());
+    }
+
+    // when
+    List<ExternalTask> tasks = externalTaskService
+      .createExternalTaskQuery()
+      .processInstanceIdIn(processInstances.toArray(new String[processInstances.size()]))
+      .list();
+
+    // then
+    assertNotNull(tasks);
+    assertEquals(1001, tasks.size());
+    for (ExternalTask task : tasks) {
+      assertTrue(processInstances.contains(task.getProcessInstanceId()));
+    }
+  }
 
   @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
   public void testQueryByProcessInstanceIdIn() {
@@ -535,6 +553,34 @@ public class ExternalTaskQueryTest extends PluggableProcessEngineTestCase {
     // then
     assertEquals(firstTask.getId(), resultTask.getId());
   }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
+  public void testQueryByBusinessKey() {
+    // given
+    String businessKey = "theUltimateKey";
+    runtimeService.startProcessInstanceByKey("oneExternalTaskProcess", businessKey);
+
+    // when
+    ExternalTask externalTask = externalTaskService.createExternalTaskQuery().singleResult();
+
+    // then
+    assertNotNull(externalTask);
+    assertEquals(businessKey, externalTask.getBusinessKey());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
+  public void testQueryListByBusinessKey() {
+    for (int i = 0; i < 5; i++) {
+      runtimeService.startProcessInstanceByKey("oneExternalTaskProcess", "businessKey" + i);
+    }
+
+    assertEquals(5, externalTaskService.createExternalTaskQuery().count());
+    List<ExternalTask> list = externalTaskService.createExternalTaskQuery().list();
+    for (ExternalTask externalTask : list) {
+      assertNotNull(externalTask.getBusinessKey());
+    }
+  }
+
 
   protected List<ProcessInstance> startInstancesByKey(String processDefinitionKey, int number) {
     List<ProcessInstance> processInstances = new ArrayList<ProcessInstance>();

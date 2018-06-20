@@ -493,10 +493,15 @@ public class AuthorizationManager extends AbstractManager {
   public boolean isCamundaAdmin(Authentication authentication) {
     List<String> groupIds = authentication.getGroupIds();
     if (groupIds != null) {
-      return groupIds.contains(Groups.CAMUNDA_ADMIN);
-    } else {
-      return false;
+      CommandContext commandContext = Context.getCommandContext();
+      List<String> adminGroups = commandContext.getProcessEngineConfiguration().getAdminGroups();
+      for (String adminGroup : adminGroups) {
+        if (groupIds.contains(adminGroup)) {
+          return true;
+        }
+      }
     }
+    return false;
   }
 
   /* QUERIES */
@@ -546,6 +551,11 @@ public class AuthorizationManager extends AbstractManager {
     configureQuery(query);
     addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
     addPermissionCheck(query, PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE);
+  }
+
+  public void configureConditionalEventSubscriptionQuery(ListQueryParameterObject query) {
+    configureQuery(query);
+    addPermissionCheck(query, PROCESS_DEFINITION, "P.KEY_", READ);
   }
 
   // incident query ///////////////////////////////////////

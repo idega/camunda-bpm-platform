@@ -17,12 +17,14 @@ package org.camunda.bpm.engine.impl.persistence.entity;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.core.variable.mapping.value.ParameterValueProvider;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.HasDbReferences;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
-import org.camunda.bpm.engine.impl.el.Expression;
 import org.camunda.bpm.engine.impl.event.EventHandler;
 import org.camunda.bpm.engine.impl.event.EventType;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -36,7 +38,7 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 /**
  * @author Daniel Meyer
  */
-public class EventSubscriptionEntity implements EventSubscription, DbEntity, HasDbRevision, Serializable {
+public class EventSubscriptionEntity implements EventSubscription, DbEntity, HasDbRevision, HasDbReferences, Serializable {
 
   private static final long serialVersionUID = 1L;
 
@@ -78,28 +80,35 @@ public class EventSubscriptionEntity implements EventSubscription, DbEntity, Has
   }
 
   // processing /////////////////////////////
-
   public void eventReceived(Object payload, boolean processASync) {
+    eventReceived(payload, null, null, processASync);
+  }
+
+  public void eventReceived(Object payload, Object payloadLocal, String businessKey, boolean processASync) {
     if(processASync) {
-      scheduleEventAsync(payload);
+      scheduleEventAsync(payload, payloadLocal, businessKey);
     } else {
-      processEventSync(payload);
+      processEventSync(payload, payloadLocal, businessKey);
     }
   }
 
   protected void processEventSync(Object payload) {
-    EventHandler eventHandler = Context.getProcessEngineConfiguration().getEventHandler(eventType);
-    ensureNotNull("Could not find eventhandler for event of type '" + eventType + "'", "eventHandler", eventHandler);
-    eventHandler.handleEvent(this, payload, Context.getCommandContext());
+    this.processEventSync(payload, null, null);
   }
 
-  protected void scheduleEventAsync(Object payload) {
+  protected void processEventSync(Object payload, Object payloadLocal, String businessKey) {
+    EventHandler eventHandler = Context.getProcessEngineConfiguration().getEventHandler(eventType);
+    ensureNotNull("Could not find eventhandler for event of type '" + eventType + "'", "eventHandler", eventHandler);
+    eventHandler.handleEvent(this, payload, payloadLocal, businessKey, Context.getCommandContext());
+  }
+
+  protected void scheduleEventAsync(Object payload, Object payloadLocal, String businessKey) {
 
     EventSubscriptionJobDeclaration asyncDeclaration = getJobDeclaration();
 
     if (asyncDeclaration == null) {
       // fallback to sync if we couldn't find a job declaration
-      processEventSync(payload);
+      processEventSync(payload, payloadLocal, businessKey);
     }
     else {
       MessageEntity message = asyncDeclaration.createJobInstance(this);
@@ -342,6 +351,23 @@ public class EventSubscriptionEntity implements EventSubscription, DbEntity, Has
   }
 
   @Override
+  public Set<String> getReferencedEntityIds() {
+    Set<String> referencedEntityIds = new HashSet<String>();
+    return referencedEntityIds;
+  }
+
+  @Override
+  public Map<String, Class> getReferencedEntitiesIdAndClass() {
+    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+
+    if (executionId != null) {
+      referenceIdAndClass.put(executionId, ExecutionEntity.class);
+    }
+
+    return referenceIdAndClass;
+  }
+
+  @Override
   public String toString() {
     return this.getClass().getSimpleName()
            + "[id=" + id
@@ -356,5 +382,4 @@ public class EventSubscriptionEntity implements EventSubscription, DbEntity, Has
            + ", created=" + created
            + "]";
   }
-
 }

@@ -16,6 +16,7 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.batch.Batch;
 
 /**
  * <p>A fluent builder to specify a modification of process instance state in terms
@@ -145,6 +146,26 @@ public interface ProcessInstanceModificationBuilder extends
    */
   void execute(boolean skipCustomListeners, boolean skipIoMappings);
 
+  /**
+   * Execute all instructions asynchronously. Custom execution and task listeners, as well as task input output mappings
+   * are executed.
+   *
+   * @throws AuthorizationException if the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *
+   * @return a batch job to be executed by the executor
+   */
+  Batch executeAsync();
 
+  /**
+   * @param skipCustomListeners specifies whether custom listeners (task and execution)
+   *   should be invoked when executing the instructions
+   * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
+   *   throughout the transaction when executing the instructions
+   *
+   * @throws AuthorizationException if the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *
+   * @return a batch job to be executed by the executor
+   */
+  Batch executeAsync(boolean skipCustomListeners, boolean skipIoMappings);
 
 }

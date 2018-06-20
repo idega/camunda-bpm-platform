@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
+import org.camunda.bpm.engine.impl.util.ModificationUtil;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 
 /**
@@ -78,10 +79,10 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     processInstance = executionManager.findExecutionById(processInstanceId);
 
     if (!processInstance.hasChildren()) {
-      if (!(processInstance.getActivity() != null && !processInstance.getId().equals(processInstance.getActivityInstanceId()))) {
+      if (processInstance.getActivity() == null) {
         // process instance was cancelled
         checkDeleteProcessInstance(processInstance, commandContext);
-        deletePropagate(processInstance,"Cancellation due to process instance modifcation", builder.isSkipCustomListeners(), builder.isSkipIoMappings());
+        deletePropagate(processInstance, builder.getModificationReason(), builder.isSkipCustomListeners(), builder.isSkipIoMappings());
       }
       else if (processInstance.isEnded()) {
         // process instance has ended regularly
@@ -147,5 +148,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     }
 
     topmostDeletableExecution.deleteCascade(deleteReason, skipCustomListeners, skipIoMappings);
+    ModificationUtil.handleChildRemovalInScope(topmostDeletableExecution);
   }
+
 }

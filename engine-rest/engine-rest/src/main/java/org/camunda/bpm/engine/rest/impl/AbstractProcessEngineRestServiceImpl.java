@@ -23,6 +23,7 @@ import org.camunda.bpm.engine.rest.BatchRestService;
 import org.camunda.bpm.engine.rest.CaseDefinitionRestService;
 import org.camunda.bpm.engine.rest.CaseExecutionRestService;
 import org.camunda.bpm.engine.rest.CaseInstanceRestService;
+import org.camunda.bpm.engine.rest.ConditionRestService;
 import org.camunda.bpm.engine.rest.DecisionDefinitionRestService;
 import org.camunda.bpm.engine.rest.DecisionRequirementsDefinitionRestService;
 import org.camunda.bpm.engine.rest.DeploymentRestService;
@@ -47,6 +48,7 @@ import org.camunda.bpm.engine.rest.UserRestService;
 import org.camunda.bpm.engine.rest.VariableInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoryRestService;
 import org.camunda.bpm.engine.rest.impl.history.HistoryRestServiceImpl;
+import org.camunda.bpm.engine.rest.impl.optimize.OptimizeRestService;
 import org.camunda.bpm.engine.rest.util.ProvidersUtil;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -241,7 +243,7 @@ public abstract class AbstractProcessEngineRestServiceImpl {
     subResource.setRelativeRootResourceUri(rootResourcePath);
     return subResource;
   }
-  
+
   public BatchRestService getBatchRestService(String engineName) {
     String rootResourcePath = getRelativeEngineUri(engineName).toASCIIString();
     BatchRestServiceImpl subResource = new BatchRestServiceImpl(engineName, getObjectMapper());
@@ -259,6 +261,20 @@ public abstract class AbstractProcessEngineRestServiceImpl {
   public SignalRestService getSignalRestService(String engineName) {
     String rootResourcePath = getRelativeEngineUri(engineName).toASCIIString();
     SignalRestServiceImpl subResource = new SignalRestServiceImpl(engineName, getObjectMapper());
+    subResource.setRelativeRootResourceUri(rootResourcePath);
+    return subResource;
+  }
+
+  public ConditionRestService getConditionRestService(String engineName) {
+    String rootResourcePath = getRelativeEngineUri(engineName).toASCIIString();
+    ConditionRestServiceImpl subResource = new ConditionRestServiceImpl(engineName, getObjectMapper());
+    subResource.setRelativeRootResourceUri(rootResourcePath);
+    return subResource;
+  }
+
+  public OptimizeRestService getOptimizeRestService(String engineName) {
+    String rootResourcePath = getRelativeEngineUri(engineName).toASCIIString();
+    OptimizeRestService subResource = new OptimizeRestService(engineName, getObjectMapper());
     subResource.setRelativeRootResourceUri(rootResourcePath);
     return subResource;
   }

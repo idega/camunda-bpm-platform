@@ -270,4 +270,24 @@ public class CommandLogger extends ProcessEngineLogger {
       historicProcessInstance.getProcessDefinitionId()
     ));
   }
+
+  public ProcessEngineException exceptionWhenStartFormScriptEvaluation(String processDefinitionId, Throwable cause) {
+    return new ProcessEngineException(exceptionMessage(
+        "041",
+        "Unable to evaluate script when rendering start form of the process definition '{}'.",
+        processDefinitionId));
+  }
+
+  public ProcessEngineException exceptionWhenEvaluatingConditionalStartEventByProcessDefinition(String processDefinitionId) {
+    return new ProcessEngineException(exceptionMessage(
+      "042",
+      "Process definition with id '{}' does not declare conditional start event.",
+      processDefinitionId));
+  }
+
+  public ProcessEngineException exceptionWhenEvaluatingConditionalStartEvent() {
+    return new ProcessEngineException(exceptionMessage(
+      "043",
+      "No subscriptions were found during evaluation of the conditional start events."));
+  }
 }

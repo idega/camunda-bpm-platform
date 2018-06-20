@@ -27,20 +27,30 @@ import static org.camunda.bpm.engine.authorization.Resources.TENANT;
 import static org.camunda.bpm.engine.authorization.Resources.TENANT_MEMBERSHIP;
 import static org.camunda.bpm.engine.authorization.Resources.USER;
 import static org.camunda.bpm.engine.test.api.authorization.util.AuthorizationTestUtil.assertExceptionInfo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
 
+import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
+import org.apache.commons.lang.time.DateUtils;
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.authorization.Authorization;
+import org.camunda.bpm.engine.authorization.Groups;
 import org.camunda.bpm.engine.authorization.MissingAuthorization;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.Tenant;
+import org.camunda.bpm.engine.identity.TenantQuery;
 import org.camunda.bpm.engine.identity.User;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.junit.Assert;
 
 /**
@@ -127,6 +137,43 @@ public class IdentityServiceAuthorizationsTest extends PluggableProcessEngineTes
     }
   }
 
+  public void testTenantAuthorizationAfterDeleteUser() {
+    // given jonny2 who is allowed to do user operations
+    User jonny = identityService.newUser(jonny2);
+    identityService.saveUser(jonny);
+
+    grantPermissions();
+
+    // turn on authorization
+    processEngineConfiguration.setAuthorizationEnabled(true);
+    identityService.setAuthenticatedUserId(jonny2);
+
+    // create user
+    User jonny1 = identityService.newUser("jonny1");
+    identityService.saveUser(jonny1);
+    String jonny1Id = jonny1.getId();
+
+    // and tenant
+    String tenant1 = "tenant1";
+    Tenant tenant = identityService.newTenant(tenant1);
+    identityService.saveTenant(tenant);
+    identityService.createTenantUserMembership(tenant1, jonny1Id);
+
+    // assume
+    TenantQuery query = identityService.createTenantQuery().userMember(jonny1Id);
+    assertThat(query.count(), is(1L));
+
+    // when
+    identityService.deleteUser(jonny1Id);
+
+    // turn off authorization
+    processEngineConfiguration.setAuthorizationEnabled(false);
+
+    // then
+    assertThat(query.count(), is(0L));
+    assertThat(authorizationService.createAuthorizationQuery().resourceType(TENANT).userIdIn(jonny1Id).count(), is(0L));
+  }
+
   public void testUserUpdateAuthorizations() {
 
     // crate user while still in god-mode:
@@ -164,6 +211,84 @@ public class IdentityServiceAuthorizationsTest extends PluggableProcessEngineTes
     User jonny3 = identityService.newUser("jonny3");
     identityService.saveUser(jonny3);
 
+  }
+
+  public void testUserUnlock() throws ParseException {
+
+    // crate user while still in god-mode:
+    String userId = "jonny";
+    User jonny = identityService.newUser(userId);
+    jonny.setPassword("xxx");
+    identityService.saveUser(jonny);
+
+    lockUser(userId, "invalid pwd");
+
+    // assume
+    int maxNumOfAttempts = 10;
+    UserEntity lockedUser = (UserEntity) identityService.createUserQuery().userId(jonny.getId()).singleResult();
+    assertNotNull(lockedUser);
+    assertNotNull(lockedUser.getLockExpirationTime());
+    assertEquals(maxNumOfAttempts, lockedUser.getAttempts());
+
+
+    // create global auth
+    Authorization basePerms = authorizationService.createNewAuthorization(AUTH_TYPE_GLOBAL);
+    basePerms.setResource(USER);
+    basePerms.setResourceId(ANY);
+    basePerms.addPermission(ALL);
+    authorizationService.saveAuthorization(basePerms);
+
+    // set auth
+    processEngineConfiguration.setAuthorizationEnabled(true);
+    identityService.setAuthentication("admin", Collections.singletonList(Groups.CAMUNDA_ADMIN), null);
+
+    // when
+    identityService.unlockUser(lockedUser.getId());
+
+    // then
+    lockedUser = (UserEntity) identityService.createUserQuery().userId(jonny.getId()).singleResult();
+    assertNotNull(lockedUser);
+    assertNull(lockedUser.getLockExpirationTime());
+    assertEquals(0, lockedUser.getAttempts());
+  }
+
+  public void testUserUnlockWithoutAuthorization() throws ParseException {
+
+    // crate user while still in god-mode:
+    String userId = "jonny";
+    User jonny = identityService.newUser(userId);
+    jonny.setPassword("xxx");
+    identityService.saveUser(jonny);
+
+    lockUser(userId, "invalid pwd");
+
+    // assume
+    int maxNumOfAttempts = 10;
+    UserEntity lockedUser = (UserEntity) identityService.createUserQuery().userId(jonny.getId()).singleResult();
+    assertNotNull(lockedUser);
+    assertNotNull(lockedUser.getLockExpirationTime());
+    assertEquals(maxNumOfAttempts, lockedUser.getAttempts());
+
+    processEngineConfiguration.setAuthorizationEnabled(true);
+    identityService.setAuthentication("admin", null, null);
+
+    // when
+    try {
+      identityService.unlockUser(lockedUser.getId());
+      fail("expected exception");
+    } catch (AuthorizationException e) {
+      assertTrue(e.getMessage().contains("ENGINE-03029 Required admin authenticated group."));
+    }
+
+    // return to god-mode
+    processEngineConfiguration.setAuthorizationEnabled(false);
+
+    // then
+    int maxNumOfLoginAttempts = 10;
+    lockedUser = (UserEntity) identityService.createUserQuery().userId(jonny.getId()).singleResult();
+    assertNotNull(lockedUser);
+    assertNotNull(lockedUser.getLockExpirationTime());
+    assertEquals(maxNumOfLoginAttempts, lockedUser.getAttempts());
   }
 
   public void testGroupCreateAuthorizations() {
@@ -234,6 +359,42 @@ public class IdentityServiceAuthorizationsTest extends PluggableProcessEngineTes
       assertExceptionInfo(DELETE.getName(), GROUP.resourceName(), "group1", info);
     }
 
+  }
+
+  public void testTenantAuthorizationAfterDeleteGroup() {
+    // given jonny2 who is allowed to do group operations
+    User jonny = identityService.newUser(jonny2);
+    identityService.saveUser(jonny);
+
+    grantPermissions();
+
+    // turn on authorization
+    processEngineConfiguration.setAuthorizationEnabled(true);
+    identityService.setAuthenticatedUserId(jonny2);
+
+    // create group
+    Group group1 = identityService.newGroup("group1");
+    identityService.saveGroup(group1);
+
+    // and tenant
+    String tenant1 = "tenant1";
+    Tenant tenant = identityService.newTenant(tenant1);
+    identityService.saveTenant(tenant);
+    identityService.createTenantGroupMembership(tenant1, "group1");
+
+    // assume
+    TenantQuery query = identityService.createTenantQuery().groupMember("group1");
+    assertThat(query.count(), is(1L));
+
+    // when
+    identityService.deleteGroup("group1");
+
+    // turn off authorization
+    processEngineConfiguration.setAuthorizationEnabled(false);
+
+    // then
+    assertThat(query.count(), is(0L));
+    assertThat(authorizationService.createAuthorizationQuery().resourceType(TENANT).groupIdIn("group1").count(), is(0L));
   }
 
 
@@ -967,6 +1128,45 @@ public class IdentityServiceAuthorizationsTest extends PluggableProcessEngineTes
 
     // now the base permission applies and grants us read access
     assertEquals(1, identityService.createTenantQuery().count());
+  }
+
+  protected void lockUser(String userId, String invalidPassword) throws ParseException {
+    Date now = ClockUtil.getCurrentTime();
+    try {
+      for (int i = 0; i <= 11; i++) {
+        assertFalse(identityService.checkPassword(userId, invalidPassword));
+        now = DateUtils.addMinutes(ClockUtil.getCurrentTime(), 1);
+        ClockUtil.setCurrentTime(now);
+      }
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
+
+  protected void grantPermissions() {
+    AuthorizationEntity userAdminAuth = new AuthorizationEntity(AUTH_TYPE_GLOBAL);
+    userAdminAuth.setResource(USER);
+    userAdminAuth.setResourceId(ANY);
+    userAdminAuth.addPermission(ALL);
+    authorizationService.saveAuthorization(userAdminAuth);
+
+    userAdminAuth = new AuthorizationEntity(AUTH_TYPE_GLOBAL);
+    userAdminAuth.setResource(GROUP);
+    userAdminAuth.setResourceId(ANY);
+    userAdminAuth.addPermission(ALL);
+    authorizationService.saveAuthorization(userAdminAuth);
+
+    userAdminAuth = new AuthorizationEntity(AUTH_TYPE_GLOBAL);
+    userAdminAuth.setResource(TENANT);
+    userAdminAuth.setResourceId(ANY);
+    userAdminAuth.addPermission(ALL);
+    authorizationService.saveAuthorization(userAdminAuth);
+
+    userAdminAuth = new AuthorizationEntity(AUTH_TYPE_GLOBAL);
+    userAdminAuth.setResource(TENANT_MEMBERSHIP);
+    userAdminAuth.setResourceId(ANY);
+    userAdminAuth.addPermission(ALL);
+    authorizationService.saveAuthorization(userAdminAuth);
   }
 
   protected void cleanupAfterTest() {

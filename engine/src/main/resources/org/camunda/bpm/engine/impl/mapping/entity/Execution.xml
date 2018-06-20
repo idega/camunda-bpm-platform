@@ -196,7 +196,7 @@
   </select>
 
   <sql id="selectProcessInstanceByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from ${prefix}ACT_RU_EXECUTION RES
     <if test="incidentType != null || incidentId != null || incidentMessage != null || incidentMessageLike != null">
       inner join ${prefix}ACT_RU_INCIDENT INC on RES.ID_ = INC.PROC_INST_ID_
@@ -226,21 +226,24 @@
         and RES.PROC_INST_ID_ = #{processInstanceId}
       </if>
       <if test="processInstanceIds != null and !processInstanceIds.isEmpty()">
-        and RES.PROC_INST_ID_ in
-        <foreach item="item" index="index" collection="processInstanceIds" open="(" separator="," close=")">
-          #{item}
-        </foreach>
+        and
+        <bind name="listOfIds" value="processInstanceIds" />
+        <bind name="fieldName" value="'RES.PROC_INST_ID_'" />
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection" />
       </if>
       <if test="businessKey != null">
         and RES.BUSINESS_KEY_ = #{businessKey}
       </if>
       <if test="businessKeyLike != null">
-        and RES.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE #{escapeChar}
+        and RES.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE ${escapeChar}
       </if>
       <if test="superProcessInstanceId != null">
         <!-- A sub process instance is stored under a certain *execution*, potentially nested.
              A sub process instance is NOT stored under the process instance, hence the following: -->
         and RES.SUPER_EXEC_ IN (select ID_ from ${prefix}ACT_RU_EXECUTION where PROC_INST_ID_ = #{superProcessInstanceId})
+      </if>
+      <if test="isRootProcessInstances == true">
+        and RES.SUPER_EXEC_ is null
       </if>
       <if test="subProcessInstanceId != null">
         and RES.ID_ = (select PROC_INST_ID_ from ${prefix}ACT_RU_EXECUTION where ID_ = (select SUPER_EXEC_ from ${prefix}ACT_RU_EXECUTION where ID_ = #{subProcessInstanceId}))
@@ -295,7 +298,7 @@
         and INC.INCIDENT_MSG_ = #{incidentMessage}
       </if>
       <if test="incidentMessageLike != null">
-        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE #{escapeChar}
+        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE ${escapeChar}
       </if>
       <if test="isTenantIdSet">
         <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
@@ -325,7 +328,7 @@
   </sql>
 
   <sql id="selectExecutionsByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from ${prefix}ACT_RU_EXECUTION RES
     <if test="businessKey != null">
       inner join ${prefix}ACT_RU_EXECUTION INST on RES.PROC_INST_ID_ = INST.ID_
@@ -412,7 +415,7 @@
         and INC.INCIDENT_MSG_ = #{incidentMessage}
       </if>
       <if test="incidentMessageLike != null">
-        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE #{escapeChar}
+        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE ${escapeChar}
       </if>
       <if test="isTenantIdSet">
         <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">

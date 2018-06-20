@@ -14,26 +14,63 @@ package org.camunda.bpm.engine.test.concurrency;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
+import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.impl.MessageCorrelationBuilderImpl;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmd.CompleteTaskCmd;
 import org.camunda.bpm.engine.impl.cmd.MessageEventReceivedCmd;
+import org.camunda.bpm.engine.impl.db.sql.DbSqlSessionFactory;
+import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.runtime.Execution;
+import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.util.DatabaseHelper;
 
 /**
  * @author Thorben Lindhauer
  *
  */
 public class CompetingMessageCorrelationTest extends ConcurrencyTestCase {
+
+  @Override
+  public void tearDown() throws Exception {
+    ((ProcessEngineConfigurationImpl)processEngine.getProcessEngineConfiguration()).getCommandExecutorTxRequiresNew().execute(new Command<Void>() {
+      public Void execute(CommandContext commandContext) {
+
+        List<HistoricJobLog> jobLogs = processEngine.getHistoryService().createHistoricJobLogQuery().list();
+        for (HistoricJobLog jobLog : jobLogs) {
+          commandContext.getHistoricJobLogManager().deleteHistoricJobLogById(jobLog.getId());
+        }
+
+        return null;
+      }
+    });
+
+    assertEquals(0, processEngine.getHistoryService().createHistoricJobLogQuery().list().size());
+
+    super.tearDown();
+  }
+
+  @Override
+  protected void runTest() throws Throwable {
+    String databaseType = DatabaseHelper.getDatabaseType(processEngineConfiguration);
+
+    if (DbSqlSessionFactory.H2.equals(databaseType) && getName().equals("testConcurrentExclusiveCorrelation")) {
+      // skip test method - if database is H2
+    } else {
+      // invoke the test method
+      super.runTest();
+    }
+  }
 
   @Deployment(resources = "org/camunda/bpm/engine/test/concurrency/CompetingMessageCorrelationTest.catchMessageProcess.bpmn20.xml")
   public void testConcurrentCorrelationFailsWithOptimisticLockingException() {

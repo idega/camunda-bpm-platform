@@ -27,11 +27,13 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 
+import org.camunda.bpm.engine.impl.OptimizeService;
 import org.camunda.bpm.engine.rest.AuthorizationRestService;
 import org.camunda.bpm.engine.rest.BatchRestService;
 import org.camunda.bpm.engine.rest.CaseDefinitionRestService;
 import org.camunda.bpm.engine.rest.CaseExecutionRestService;
 import org.camunda.bpm.engine.rest.CaseInstanceRestService;
+import org.camunda.bpm.engine.rest.ConditionRestService;
 import org.camunda.bpm.engine.rest.DecisionDefinitionRestService;
 import org.camunda.bpm.engine.rest.DecisionRequirementsDefinitionRestService;
 import org.camunda.bpm.engine.rest.DeploymentRestService;
@@ -57,6 +59,7 @@ import org.camunda.bpm.engine.rest.VariableInstanceRestService;
 import org.camunda.bpm.engine.rest.dto.ProcessEngineDto;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.history.HistoryRestService;
+import org.camunda.bpm.engine.rest.impl.optimize.OptimizeRestService;
 import org.camunda.bpm.engine.rest.spi.ProcessEngineProvider;
 
 @Path(NamedProcessEngineRestServiceImpl.PATH)
@@ -213,7 +216,7 @@ public class NamedProcessEngineRestServiceImpl extends AbstractProcessEngineRest
   public ModificationRestService getModificationRestService(@PathParam("name") String engineName) {
     return super.getModificationRestService(engineName);
   }
-  
+
   @Override
   @Path("/{name}" + BatchRestService.PATH)
   public BatchRestService getBatchRestService(@PathParam("name") String engineName) {
@@ -230,6 +233,17 @@ public class NamedProcessEngineRestServiceImpl extends AbstractProcessEngineRest
   @Path("/{name}" + SignalRestService.PATH)
   public SignalRestService getSignalRestService(@PathParam("name") String engineName) {
     return super.getSignalRestService(engineName);
+  }
+
+  @Override
+  @Path("/{name}" + ConditionRestService.PATH)
+  public ConditionRestService getConditionRestService(@PathParam("name") String engineName) {
+    return super.getConditionRestService(engineName);
+  }
+
+  @Path("/{name}" + OptimizeRestService.PATH)
+  public OptimizeRestService getOptimizeRestService(@PathParam("name") String engineName) {
+    return super.getOptimizeRestService(engineName);
   }
 
   @GET

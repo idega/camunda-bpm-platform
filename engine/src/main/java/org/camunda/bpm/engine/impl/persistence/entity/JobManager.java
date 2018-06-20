@@ -207,8 +207,8 @@ public class JobManager extends AbstractManager {
   }
 
   @SuppressWarnings("unchecked")
-  public JobEntity findJobByHandlerType(String handlerType) {
-    return (JobEntity)getDbEntityManager().selectOne("selectJobsByHandlerType", handlerType);
+  public List<Job> findJobsByHandlerType(String handlerType) {
+    return getDbEntityManager().selectList("selectJobsByHandlerType", handlerType);
   }
 
   @SuppressWarnings("unchecked")

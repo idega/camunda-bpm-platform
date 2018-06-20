@@ -254,6 +254,9 @@ public abstract class MockProvider {
   public static final String EXAMPLE_PROCESS_DEFINITION_NAME = "aName";
   public static final String EXAMPLE_PROCESS_DEFINITION_NAME_LIKE = "aNameLike";
   public static final String EXAMPLE_PROCESS_DEFINITION_KEY = "aKey";
+  public static final String ANOTHER_EXAMPLE_PROCESS_DEFINITION_KEY="anotherProcessDefinitionKey";
+  public static final String EXAMPLE_KEY_LIST = EXAMPLE_PROCESS_DEFINITION_KEY + "," + ANOTHER_EXAMPLE_PROCESS_DEFINITION_KEY;
+
   public static final String NON_EXISTING_PROCESS_DEFINITION_KEY = "aNonExistingKey";
   public static final String EXAMPLE_PROCESS_DEFINITION_CATEGORY = "aCategory";
   public static final String EXAMPLE_PROCESS_DEFINITION_DESCRIPTION = "aDescription";
@@ -2860,7 +2863,8 @@ public abstract class MockProvider {
       .topicName(EXTERNAL_TASK_TOPIC_NAME)
       .workerId(EXTERNAL_TASK_WORKER_ID)
       .tenantId(EXAMPLE_TENANT_ID)
-      .priority(EXTERNAL_TASK_PRIORITY);
+      .priority(EXTERNAL_TASK_PRIORITY)
+      .businessKey(EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY);
 
   }
 

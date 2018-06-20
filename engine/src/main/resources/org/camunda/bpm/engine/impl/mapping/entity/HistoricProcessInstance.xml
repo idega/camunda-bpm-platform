@@ -184,7 +184,7 @@
   </select>
 
   <sql id="selectHistoricProcessInstancesByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from (
 
     SELECT SELF.*, DEF.NAME_, DEF.VERSION_
@@ -200,7 +200,7 @@
     </if>
 
 
-    <if test="withIncidents || incidentStatus != null || incidentMessage != null || incidentMessageLike != null || incidentType != null">
+    <if test="withIncidents || withRootIncidents || incidentStatus != null || incidentMessage != null || incidentMessageLike != null || incidentType != null">
         inner join ${prefix}ACT_HI_INCIDENT INC on SELF.PROC_INST_ID_ = INC.PROC_INST_ID_
     </if>
 
@@ -232,13 +232,13 @@
         and DEF.NAME_ = #{processDefinitionName}
       </if>
       <if test="processDefinitionNameLike != null">
-        and DEF.NAME_ like #{processDefinitionNameLike} ESCAPE #{escapeChar}
+        and DEF.NAME_ like #{processDefinitionNameLike} ESCAPE ${escapeChar}
       </if>
       <if test="businessKey != null">
         and SELF.BUSINESS_KEY_ = #{businessKey}
       </if>
       <if test="businessKeyLike != null">
-        and SELF.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE #{escapeChar}
+        and SELF.BUSINESS_KEY_ like #{businessKeyLike} ESCAPE ${escapeChar}
       </if>
 
       <if test="startedBefore != null">
@@ -255,9 +255,13 @@
       </if>
       <if test="processKeyNotIn != null">
         <foreach collection="processKeyNotIn" index="index" item="procDefKey">
-          and DEF.KEY_ not like #{procDefKey} ESCAPE #{escapeChar}
+          and DEF.KEY_ not like #{procDefKey} ESCAPE ${escapeChar}
         </foreach>
       </if>
+      <if test="state != null">
+        and STATE_ = #{state}
+      </if>
+      
 
       <!-- DEPRECATED : TO BE REMOVED IN 5.11 -->
       <if test="startDateOn">
@@ -293,7 +297,7 @@
       </if>
 
       <if test="incidentMessageLike != null">
-        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE #{escapeChar}
+        and INC.INCIDENT_MSG_ like #{incidentMessageLike} ESCAPE ${escapeChar}
       </if>
 
       <if test="incidentStatus == 'open'">
@@ -304,6 +308,9 @@
         and INC.END_TIME_ is not null
       </if>
 
+	  <if test="withRootIncidents">
+        and INC.ID_ = INC.ROOT_CAUSE_INCIDENT_ID_
+	  </if>
       <if test="startedBy != null">
         and SELF.START_USER_ID_ = #{startedBy}
       </if>
@@ -424,37 +431,44 @@
 
   <!-- Select ids for async history cleanup -->
   <sql id="selectHistoricProcessInstanceIdsForCleanupSql">
+    <bind name="days" value="'pd.HISTORY_TTL_'"/>
+    <bind name="date" value="'pi.END_TIME_'"/>
+    <bind name="currentTimestamp" value="parameter.currentTimestamp"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
     FROM ${prefix}ACT_HI_PROCINST pi, ${prefix}ACT_RE_PROCDEF pd
     where
         pi.PROC_DEF_ID_ = pd.ID_
         AND not pi.END_TIME_ is NULL
         AND not pd.HISTORY_TTL_ is NULL
+        AND ${dayComparator}
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}pi.END_TIME_${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}pi.END_TIME_${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
   </sql>
 
   <select id="selectHistoricProcessInstanceIdsForCleanup" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
-    <bind name="days" value="'pd.HISTORY_TTL_'"/>
-    <bind name="date" value="'pi.END_TIME_'"/>
-    <bind name="currentTimestamp" value="parameter"/>
-    ${limitBefore}
-    SELECT DISTINCT RES.*
-    ${limitBetween}
-    FROM (
-      SELECT pi.PROC_INST_ID_, pi.END_TIME_
-      <include refid="selectHistoricProcessInstanceIdsForCleanupSql"/>
-      AND ${dayComparator}
-    ) RES
-    ${orderBy}
-    ${limitAfter}
+    SELECT ${limitBeforeWithoutOffset} pi.PROC_INST_ID_, pi.END_TIME_
+    <include refid="selectHistoricProcessInstanceIdsForCleanupSql"/>
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
   </select>
 
-  <select id="selectHistoricProcessInstanceIdsForCleanupCount" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="long">
-    <bind name="days" value="'pd.HISTORY_TTL_'"/>
-    <bind name="date" value="'pi.END_TIME_'"/>
-    <bind name="currentTimestamp" value="parameter"/>
-    SELECT count(pi.PROC_INST_ID_)
+  <select id="selectHistoricProcessInstanceIdsForCleanup_oracle" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
+    SELECT /*+ FIRST_ROWS(${maxResults}) NO_PARALLEL(pi) NO_PARALLEL(pd) */ pi.PROC_INST_ID_, pi.END_TIME_
     <include refid="selectHistoricProcessInstanceIdsForCleanupSql"/>
-    AND ${dayComparator}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
   </select>
 
   <!-- DB2 or MSSQL -->
@@ -502,7 +516,7 @@
         RES.HISTORY_TTL_,
         RES.TENANT_ID_,
         F.FINISHED_,
-        SUM(CASE WHEN PI.END_TIME_ is not null and ${dayComparator} THEN 1 ELSE 0 END) AS CLEANABLE_
+        SUM(CASE WHEN RES.HISTORY_TTL_ is not null and PI.END_TIME_ is not null and (RES.HISTORY_TTL_ = 0 OR ${dayComparator}) THEN 1 ELSE 0 END) AS CLEANABLE_
       FROM
         (
           SELECT DISTINCT RES.*
@@ -569,5 +583,63 @@
     ) RES
 
   </sql>
+
+  <select id="selectCompletedHistoricProcessInstancePage" resultMap="historicProcessInstanceResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+
+    select RES.*
+    from (
+      ${optimizeLimitBeforeWithoutOffset}
+      SELECT ${limitBeforeWithoutOffset} SELF.*, DEF.NAME_, DEF.VERSION_
+      FROM ${prefix}ACT_HI_PROCINST SELF
+
+      LEFT JOIN ${prefix}ACT_RE_PROCDEF DEF
+      ON SELF.PROC_DEF_ID_ = DEF.ID_
+
+      <where>
+        <if test="parameter.finishedAfter != null">
+          and SELF.END_TIME_ &gt; #{parameter.finishedAfter}
+        </if>
+        <if test="test=parameter.finishedAt != null">
+          and SELF.END_TIME_ = #{parameter.finishedAt}
+        </if>
+        <if test="parameter.finishedAfter == null and parameter.finishedAt == null">
+          and SELF.END_TIME_ is not null
+        </if>
+      </where>
+
+      ORDER BY SELF.END_TIME_ ASC
+      ${optimizeLimitAfterWithoutOffset}
+    ) RES
+
+  </select>
+
+  <select id="selectRunningHistoricProcessInstancePage" resultMap="historicProcessInstanceResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+    select RES.*
+    from (
+      ${optimizeLimitBeforeWithoutOffset}
+      SELECT ${limitBeforeWithoutOffset} SELF.*, DEF.NAME_, DEF.VERSION_
+      FROM ${prefix}ACT_HI_PROCINST SELF
+
+      LEFT JOIN ${prefix}ACT_RE_PROCDEF DEF
+      ON SELF.PROC_DEF_ID_ = DEF.ID_
+
+      <where>
+        <if test="parameter.startedAfter != null">
+          and SELF.START_TIME_ &gt; #{parameter.startedAfter}
+        </if>
+        <if test="test=parameter.startedAt != null">
+          and SELF.START_TIME_ = #{parameter.startedAt}
+        </if>
+        and SELF.END_TIME_ is null
+      </where>
+
+      ORDER BY SELF.START_TIME_ ASC
+      ${optimizeLimitAfterWithoutOffset}
+
+    ) RES
+
+  </select>
 
 </mapper>

@@ -16,6 +16,7 @@ package org.camunda.bpm.engine.impl.persistence.deploy.cache;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionQueryImpl;
@@ -91,6 +92,10 @@ public class DeploymentCache {
 
   public ProcessDefinitionEntity findDeployedProcessDefinitionByKeyVersionAndTenantId(final String processDefinitionKey, final Integer processDefinitionVersion, final String tenantId) {
     return processDefinitionEntityCache.findDeployedDefinitionByKeyVersionAndTenantId(processDefinitionKey, processDefinitionVersion, tenantId);
+  }
+
+  public ProcessDefinitionEntity findDeployedProcessDefinitionByKeyVersionTagAndTenantId(String processDefinitionKey, String processDefinitionVersionTag, String tenantId) {
+    return processDefinitionEntityCache.findDeployedDefinitionByKeyVersionTagAndTenantId(processDefinitionKey, processDefinitionVersionTag, tenantId);
   }
 
   public ProcessDefinitionEntity findDeployedProcessDefinitionByDeploymentAndKey(String deploymentId, String processDefinitionKey) {
@@ -213,6 +218,10 @@ public class DeploymentCache {
     return decisionDefinitionCache.findDeployedDefinitionByKeyVersionAndTenantId(decisionDefinitionKey, decisionDefinitionVersion, tenantId);
   }
 
+  public DecisionDefinition findDeployedDecisionDefinitionByKeyVersionTagAndTenantId(String decisionDefinitionKey, String decisionDefinitionVersionTag, String tenantId) {
+    return decisionDefinitionCache.findDeployedDefinitionByKeyVersionTagAndTenantId(decisionDefinitionKey, decisionDefinitionVersionTag, tenantId);
+  }
+
   public DecisionDefinitionEntity resolveDecisionDefinition(DecisionDefinitionEntity decisionDefinition) {
     return decisionDefinitionCache.resolveDefinition(decisionDefinition);
   }
@@ -297,8 +306,12 @@ public class DeploymentCache {
 
   public void removeDeployment(String deploymentId) {
     bpmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
-    cmmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
-    dmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    if(Context.getProcessEngineConfiguration().isCmmnEnabled()) {
+      cmmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    }
+    if(Context.getProcessEngineConfiguration().isDmnEnabled()) {
+      dmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    }
     removeAllDecisionRequirementsDefinitionsByDeploymentId(deploymentId);
   }
 

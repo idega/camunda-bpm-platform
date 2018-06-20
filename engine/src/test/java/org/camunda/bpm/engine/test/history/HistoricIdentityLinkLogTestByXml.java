@@ -24,6 +24,14 @@ public class HistoricIdentityLinkLogTestByXml extends PluggableProcessEngineTest
   private static final String XML_GROUP = "demoGroups";
   private static final String XML_ASSIGNEE = "assignee";
 
+  protected static final String TENANT_ONE = "tenant1";
+
+  protected static final String CANDIDATE_STARTER_USER = "org/camunda/bpm/engine/test/api/repository/ProcessDefinitionCandidateTest.testCandidateStarterUser.bpmn20.xml";
+  protected static final String CANDIDATE_STARTER_USERS = "org/camunda/bpm/engine/test/api/repository/ProcessDefinitionCandidateTest.testCandidateStarterUsers.bpmn20.xml";
+
+  protected static final String CANDIDATE_STARTER_GROUP = "org/camunda/bpm/engine/test/api/repository/ProcessDefinitionCandidateTest.testCandidateStarterGroup.bpmn20.xml";
+  protected static final String CANDIDATE_STARTER_GROUPS = "org/camunda/bpm/engine/test/api/repository/ProcessDefinitionCandidateTest.testCandidateStarterGroups.bpmn20.xml";
+
   @Deployment(resources = { "org/camunda/bpm/engine/test/api/runtime/OneTaskProcessWithCandidateUser.bpmn20.xml" })
   public void testShouldAddTaskCandidateforAddIdentityLinkUsingXml() {
 
@@ -121,6 +129,81 @@ public class HistoricIdentityLinkLogTestByXml extends PluggableProcessEngineTest
     HistoricIdentityLinkLogQuery query = historyService.createHistoricIdentityLinkLogQuery();
     assertEquals(query.groupId(XML_GROUP).count(), 1);
   }
+
+  public void testPropagateTenantIdToCandidateStarterUser() {
+    // when
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService.createDeployment()
+      .addClasspathResource(CANDIDATE_STARTER_USER)
+      .tenantId(TENANT_ONE)
+      .deploy();
+
+    // then
+    List<HistoricIdentityLinkLog> historicLinks = historyService.createHistoricIdentityLinkLogQuery().list();
+    assertEquals(historicLinks.size(), 1);
+
+    HistoricIdentityLinkLog historicLink = historicLinks.get(0);
+    assertNotNull(historicLink.getTenantId());
+    assertEquals(TENANT_ONE, historicLink.getTenantId());
+
+    repositoryService.deleteDeployment(deployment.getId(), true);
+  }
+
+  public void testPropagateTenantIdToCandidateStarterUsers() {
+    // when
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService.createDeployment()
+        .addClasspathResource(CANDIDATE_STARTER_USERS)
+        .tenantId(TENANT_ONE)
+        .deploy();
+
+      // then
+      List<HistoricIdentityLinkLog> historicLinks = historyService.createHistoricIdentityLinkLogQuery().list();
+      assertEquals(3, historicLinks.size());
+
+    for (HistoricIdentityLinkLog historicLink : historicLinks) {
+      assertNotNull(historicLink.getTenantId());
+      assertEquals(TENANT_ONE, historicLink.getTenantId());
+    }
+
+    repositoryService.deleteDeployment(deployment.getId(), true);
+  }
+
+  public void testPropagateTenantIdToCandidateStarterGroup() {
+    // when
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService.createDeployment()
+        .addClasspathResource(CANDIDATE_STARTER_GROUP)
+        .tenantId(TENANT_ONE)
+        .deploy();
+
+      // then
+      List<HistoricIdentityLinkLog> historicLinks = historyService.createHistoricIdentityLinkLogQuery().list();
+      assertEquals(historicLinks.size(), 1);
+
+      HistoricIdentityLinkLog historicLink = historicLinks.get(0);
+      assertNotNull(historicLink.getTenantId());
+      assertEquals(TENANT_ONE, historicLink.getTenantId());
+
+      repositoryService.deleteDeployment(deployment.getId(), true);
+  }
+
+  public void testPropagateTenantIdToCandidateStarterGroups() {
+    // when
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService.createDeployment()
+        .addClasspathResource(CANDIDATE_STARTER_GROUPS)
+        .tenantId(TENANT_ONE)
+        .deploy();
+
+      // then
+      List<HistoricIdentityLinkLog> historicLinks = historyService.createHistoricIdentityLinkLogQuery().list();
+      assertEquals(3, historicLinks.size());
+
+    for (HistoricIdentityLinkLog historicLink : historicLinks) {
+      assertNotNull(historicLink.getTenantId());
+      assertEquals(TENANT_ONE, historicLink.getTenantId());
+    }
+
+    repositoryService.deleteDeployment(deployment.getId(), true);
+  }
+
   protected ProcessInstance startProcessInstance(String key) {
     return runtimeService.startProcessInstanceByKey(key);
   }

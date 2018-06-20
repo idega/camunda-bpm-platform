@@ -13,6 +13,7 @@ import java.util.Set;
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -1502,6 +1504,36 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     verify(mockedQuery).activeActivityIdIn("1", "2");
   }
 
+  @Test
+  public void testQueryWithRootIncidents() {
+    given()
+      .queryParam("withRootIncidents", true)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).withRootIncidents();
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryWithRootIncidentsAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("withRootIncidents", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withRootIncidents();
+  }
+
   private void verifyExecutedJobParameterQueryInvocations() {
     Map<String, Date> startDateParameters = getCompleteExecutedJobDateQueryParameters();
 
@@ -1536,6 +1568,199 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     parameters.put(QUERY_PARAM_EXECUTED_JOB_BEFORE, MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_STARTED_BEFORE);
 
     return parameters;
+  }
+
+  @Test
+  public void testQueryByActive() {
+    given()
+      .queryParam("active", true)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).active();
+  }
+
+
+  @Test
+  public void testQueryByCompleted() {
+    given()
+      .queryParam("completed", true)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).completed();
+  }
+
+  @Test
+  public void testQueryBySuspended() {
+    given()
+      .queryParam("suspended", true)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).suspended();
+  }
+
+  @Test
+  public void testQueryByExternallyTerminated() {
+    given()
+      .queryParam("externallyTerminated", true)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).externallyTerminated();
+  }
+
+  @Test
+  public void testQueryByInternallyTerminated() {
+    given()
+      .queryParam("internallyTerminated", true)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).internallyTerminated();
+  }
+
+  @Test
+  public void testQueryByTwoStates() {
+    String message = "expected exception";
+    doThrow(new BadUserRequestException(message)).when(mockedQuery).completed();
+
+    given()
+      .queryParam("active", true)
+      .queryParam("completed", true)
+    .then()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(BadUserRequestException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+        .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).active();
+  }
+
+  @Test
+  public void testQueryByActiveAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("active", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).active();
+  }
+
+  @Test
+  public void testQueryByCompletedAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("completed", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).completed();
+  }
+
+  @Test
+  public void testQueryBySuspendedAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("suspended", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).suspended();
+  }
+
+  @Test
+  public void testQueryByExternallyTerminatedAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("externallyTerminated", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).externallyTerminated();
+  }
+
+
+  @Test
+  public void testQueryByInternallyTerminatedAsPost() {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("internallyTerminated", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).internallyTerminated();
+  }
+
+  @Test
+  public void testQueryByTwoStatesAsPost() {
+    String message = "expected exception";
+    doThrow(new BadUserRequestException(message)).when(mockedQuery).completed();
+
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("active", true);
+    parameters.put("completed", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(BadUserRequestException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).active();
   }
 
 }

@@ -33,6 +33,15 @@
       and REV_ = #{revision}
   </update>
   
+  <update id="updateUserLock" parameterType="org.camunda.bpm.engine.impl.persistence.entity.UserEntity">
+    update ${prefix}ACT_ID_USER set
+      REV_ = #{revisionNext ,jdbcType=INTEGER},
+      LOCK_EXP_TIME_ = #{lockExpirationTime ,jdbcType=TIMESTAMP},
+      ATTEMPTS_ = #{attempts ,jdbcType=INTEGER}
+    where ID_ = #{id}
+      and REV_ = #{revision}
+  </update>
+  
   <!-- USER DELETE -->
 
   <delete id="deleteUser" parameterType="org.camunda.bpm.engine.impl.persistence.entity.UserEntity">
@@ -49,6 +58,8 @@
     <result property="email" column="EMAIL_" jdbcType="VARCHAR" />
     <result property="dbPassword" column="PWD_" jdbcType="VARCHAR" />
     <result property="salt" column="SALT_" jdbcType="VARCHAR" />
+    <result property="lockExpirationTime" column="LOCK_EXP_TIME_" jdbcType="TIMESTAMP" />
+    <result property="attempts" column="ATTEMPTS_" jdbcType="INTEGER" />
   </resultMap>
   
   <!-- USER SELECT -->
@@ -73,7 +84,7 @@
   </select>
   
   <sql id="selectUserByQueryCriteriaSql">
-    <bind name="escapeChar" value="'\\'"/>
+
     from ${prefix}ACT_ID_USER RES 
     <if test="groupId != null">
       inner join ${prefix}ACT_ID_MEMBERSHIP M on RES.ID_ = M.USER_ID_
@@ -100,19 +111,19 @@
         and RES.FIRST_ = #{firstName}
       </if>
       <if test="firstNameLike != null">
-        and RES.FIRST_ like #{firstNameLike} ESCAPE #{escapeChar}
+        and RES.FIRST_ like #{firstNameLike} ESCAPE ${escapeChar}
       </if>
       <if test="lastName != null">
         and RES.LAST_ = #{lastName}
       </if>
       <if test="lastNameLike != null">
-        and RES.LAST_ like #{lastNameLike} ESCAPE #{escapeChar}
+        and RES.LAST_ like #{lastNameLike} ESCAPE ${escapeChar}
       </if>
       <if test="email != null">
         and RES.EMAIL_ = #{email}
       </if>
       <if test="emailLike != null">
-        and RES.EMAIL_ like #{emailLike} ESCAPE #{escapeChar}
+        and RES.EMAIL_ like #{emailLike} ESCAPE ${escapeChar}
       </if>
       <if test="groupId != null">
         and G.ID_ = #{groupId}
