@@ -78,6 +78,9 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
   protected String versionTag;
   protected String versionTagLike;
 
+  protected boolean isStartableInTasklist = false;
+  protected boolean isNotStartableInTasklist = false;
+
   public ProcessDefinitionQueryImpl() {
   }
 
@@ -259,6 +262,16 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
     return this;
   }
 
+  public ProcessDefinitionQuery startableInTasklist() {
+    this.isStartableInTasklist = true;
+    return this;
+  }
+
+  public ProcessDefinitionQuery notStartableInTasklist() {
+    this.isNotStartableInTasklist = true;
+    return this;
+  }
+
   //sorting ////////////////////////////////////////////
 
   public ProcessDefinitionQuery orderByDeploymentId() {
@@ -416,6 +429,14 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   public String getVersionTag() {
     return versionTag;
+  }
+
+  public boolean isStartableInTasklist() {
+    return isStartableInTasklist;
+  }
+
+  public boolean isNotStartableInTasklist() {
+    return isNotStartableInTasklist;
   }
 
   public ProcessDefinitionQueryImpl startableByUser(String userId) {
