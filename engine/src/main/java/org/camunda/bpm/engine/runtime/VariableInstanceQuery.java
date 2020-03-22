@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -59,6 +63,42 @@ public interface VariableInstanceQuery extends Query<VariableInstanceQuery, Vari
 
   /** Only select variable instances which have one of the activity instance ids. **/
   VariableInstanceQuery activityInstanceIdIn(String... activityInstanceIds);
+
+  /**
+   * The query will match the names of variables in a case-insensitive way.<br>
+   * Note: This affects all <code>variableValueXXX</code> filters: 
+   * <ul>
+   *  <li>{@link #variableValueEquals(String, Object)}</li>
+   *  <li>{@link #variableValueGreaterThan(String, Object)}</li>
+   *  <li>{@link #variableValueGreaterThanOrEqual(String, Object)}</li>
+   *  <li>{@link #variableValueLessThan(String, Object)}</li>
+   *  <li>{@link #variableValueLessThanOrEqual(String, Object)}</li>
+   *  <li>{@link #variableValueLike(String, String)}</li>
+   *  <li>{@link #variableValueNotEquals(String, Object)}</li>
+   * </ul>
+   * It does not affect:
+   * <ul>
+   *  <li>{@link #variableName(String)}</li>
+   *  <li>{@link #variableNameIn(String...)}</li>
+   *  <li>{@link #variableNameLike(String)}</li>
+   * <ul>
+   */
+  VariableInstanceQuery matchVariableNamesIgnoreCase();
+
+  /**
+   * The query will match the values of variables in a case-insensitive way.<br>
+   * Note: This affects all <code>variableValueXXX</code> filters: 
+   * <ul>
+   *  <li>{@link #variableValueEquals(String, Object)}</li>
+   *  <li>{@link #variableValueGreaterThan(String, Object)}</li>
+   *  <li>{@link #variableValueGreaterThanOrEqual(String, Object)}</li>
+   *  <li>{@link #variableValueLessThan(String, Object)}</li>
+   *  <li>{@link #variableValueLessThanOrEqual(String, Object)}</li>
+   *  <li>{@link #variableValueLike(String, String)}</li>
+   *  <li>{@link #variableValueNotEquals(String, Object)}</li>
+   * </ul>
+   */
+  VariableInstanceQuery matchVariableValuesIgnoreCase();
 
   /**
    * Only select variables instances which have the given name and value. The type

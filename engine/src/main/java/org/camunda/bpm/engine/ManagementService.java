@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,12 +24,16 @@ import java.util.Set;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.application.ProcessApplicationRegistration;
+import org.camunda.bpm.engine.authorization.BatchPermissions;
 import org.camunda.bpm.engine.authorization.Groups;
 import org.camunda.bpm.engine.authorization.Permissions;
+import org.camunda.bpm.engine.authorization.ProcessDefinitionPermissions;
+import org.camunda.bpm.engine.authorization.ProcessInstancePermissions;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.batch.BatchQuery;
 import org.camunda.bpm.engine.batch.BatchStatisticsQuery;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.management.ActivityStatisticsQuery;
 import org.camunda.bpm.engine.management.DeploymentStatisticsQuery;
@@ -33,6 +41,7 @@ import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.management.JobDefinitionQuery;
 import org.camunda.bpm.engine.management.MetricsQuery;
 import org.camunda.bpm.engine.management.ProcessDefinitionStatisticsQuery;
+import org.camunda.bpm.engine.management.SchemaLogQuery;
 import org.camunda.bpm.engine.management.TableMetaData;
 import org.camunda.bpm.engine.management.TablePage;
 import org.camunda.bpm.engine.management.TablePageQuery;
@@ -804,7 +813,9 @@ public interface ManagementService {
    *
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          and no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
+   *          and no {@link ProcessInstancePermissions#RETRY_JOB} permission on {@link Resources#PROCESS_INSTANCE}
+   *          and no {@link ProcessDefinitionPermissions#RETRY_JOB} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void setJobRetries(String jobId, int retries);
 
@@ -821,7 +832,9 @@ public interface ManagementService {
    * @throws BadUserRequestException if jobIds is null
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          and no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
+   *          and no {@link Permissions#RETRY_JOB} permission on {@link Resources#PROCESS_INSTANCE}
+   *          and no {@link Permissions#RETRY_JOB} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void setJobRetries(List<String> jobIds, int retries);
 
@@ -837,7 +850,8 @@ public interface ManagementService {
    *
    * @throws BadUserRequestException if jobIds is null
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_SET_JOB_RETRIES} permission on {@link Resources#BATCH}.
    */
   Batch setJobRetriesAsync(List<String> jobIds, int retries);
 
@@ -853,7 +867,8 @@ public interface ManagementService {
    *
    * @throws BadUserRequestException if jobQuery is null
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_SET_JOB_RETRIES} permission on {@link Resources#BATCH}.
    */
   Batch setJobRetriesAsync(JobQuery jobQuery, int retries);
 
@@ -873,7 +888,8 @@ public interface ManagementService {
    *
    * @throws BadUserRequestException if neither jobIds, nor jobQuery is provided or result in empty list
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_SET_JOB_RETRIES} permission on {@link Resources#BATCH}.
    */
   Batch setJobRetriesAsync(List<String> jobIds, JobQuery jobQuery, int retries);
 
@@ -892,9 +908,37 @@ public interface ManagementService {
    * @param retries number of retries.
    *
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_SET_JOB_RETRIES} permission on {@link Resources#BATCH}.
    */
   Batch setJobRetriesAsync (List<String> processInstanceIds, ProcessInstanceQuery query, int retries);
+
+  /**
+   * Sets the number of retries that jobs have left asynchronously.
+   *
+   * Whenever the JobExecutor fails to execute a job, this value is decremented.
+   * When it hits zero, the job is supposed to be dead and not retried again.
+   * In that case, this method can be used to increase the number of retries.
+   *
+   * processInstanceIds, processInstanceQuery or historicProcessInstanceQuery has to be provided.
+   * If all are provided, resulting list of affected jobs will contain jobs related to the
+   * query as well as jobs related to instances in the list.
+   *
+   * @param processInstanceIds ids of the process instances that for which jobs retries will be set
+   * @param processInstanceQuery query that identifies process instances with jobs
+   *                             that have to be modified
+   * @param historicProcessInstanceQuery historic query that identifies runtime process instances
+   *                                     with jobs that have to be modified
+   * @param retries number of retries.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_SET_JOB_RETRIES} permission on {@link Resources#BATCH}.
+   */
+  Batch setJobRetriesAsync (List<String> processInstanceIds,
+                            ProcessInstanceQuery processInstanceQuery,
+                            HistoricProcessInstanceQuery historicProcessInstanceQuery,
+                            int retries);
 
   /**
    * <p>
@@ -920,7 +964,9 @@ public interface ManagementService {
    *
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          and no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
+   *          and no {@link Permissions#RETRY_JOB} permission on {@link Resources#PROCESS_INSTANCE}
+   *          and no {@link Permissions#RETRY_JOB} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void setJobRetriesByJobDefinitionId(String jobDefinitionId, int retries);
 
@@ -937,6 +983,38 @@ public interface ManagementService {
    *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void setJobDuedate(String jobId, Date newDuedate);
+
+  /**
+   * Sets a new due date for the provided id. The offset between 
+   * the old and the new due date can be cascaded to all follow-up
+   * jobs. Cascading only works with timer jobs.
+   * When newDuedate is null, the job is executed with the next
+   * job executor run. In this case the cascade parameter is ignored.
+   *
+   * @param jobId id of job to modify, cannot be null.
+   * @param newDuedate new date for job execution
+   * @param cascade indicate whether follow-up jobs should be affected
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void setJobDuedate(String jobId, Date newDuedate, boolean cascade);
+  /**
+   * Triggers the recalculation for the job with the provided id.
+   * 
+   * @param jobId id of job to recalculate, must neither be null nor empty.
+   * @param creationDateBased
+   *          indicates whether the recalculation should be based on the
+   *          creation date of the job or the current date
+   * 
+   * @throws AuthorizationException
+   *           If the user has no {@link Permissions#UPDATE} permission on
+   *           {@link Resources#PROCESS_INSTANCE} or no
+   *           {@link Permissions#UPDATE_INSTANCE} permission on
+   *           {@link Resources#PROCESS_DEFINITION}.
+   */
+  void recalculateJobDuedate(String jobId, boolean creationDateBased);
 
   /**
    * Sets a new priority for the job with the provided id.
@@ -1037,13 +1115,23 @@ public interface ManagementService {
    */
   String getJobExceptionStacktrace(String jobId);
 
-  /** get the list of properties. */
+  /**
+   * @return a map of all properties.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
   Map<String, String> getProperties();
 
-  /** Set the value for a property.
+  /**
+   * Set the value for a property.
    *
-   *  @param name the name of the property.
-   *  @param value the new value for the property.
+   * @param name the name of the property.
+   *
+   * @param value the new value for the property.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
    */
   void setProperty(String name, String value);
 
@@ -1051,8 +1139,37 @@ public interface ManagementService {
    * Deletes a property by name. If the property does not exist, the request is ignored.
    *
    * @param name the name of the property to delete
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
    */
   void deleteProperty(String name);
+
+  /**
+   * Set the license key.
+   *
+   * @param licenseKey the license key string.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  void setLicenseKey(String licenseKey);
+
+  /**
+   * Get the stored license key string or <code>null</code> if no license is set.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  String getLicenseKey();
+  
+  /**
+   * Deletes the stored license key. If no license key is set, the request is ignored.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  void deleteLicenseKey();
 
   /** programmatic schema update on a given connection returning feedback about what happened
    *
@@ -1218,5 +1335,12 @@ public interface ManagementService {
    * @since 7.5
    */
   BatchStatisticsQuery createBatchStatisticsQuery();
+
+  /**
+   * Query for entries of the database schema log.
+   * 
+   * @since 7.11
+   */
+  SchemaLogQuery createSchemaLogQuery();
 
 }

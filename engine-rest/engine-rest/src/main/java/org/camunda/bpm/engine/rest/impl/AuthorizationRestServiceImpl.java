@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,10 +18,16 @@ package org.camunda.bpm.engine.rest.impl;
 
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.authorization.AuthorizationQuery;
+import org.camunda.bpm.engine.authorization.Permission;
+import org.camunda.bpm.engine.authorization.Permissions;
+import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.identity.Group;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.rest.AuthorizationRestService;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
@@ -29,13 +39,14 @@ import org.camunda.bpm.engine.rest.dto.authorization.AuthorizationQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.sub.authorization.AuthorizationResource;
 import org.camunda.bpm.engine.rest.sub.authorization.impl.AuthorizationResourceImpl;
-import org.camunda.bpm.engine.rest.util.AuthorizationUtil;
+import org.camunda.bpm.engine.rest.util.ResourceUtil;
 
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.camunda.bpm.engine.authorization.Authorization.ANY;
@@ -52,7 +63,7 @@ public class AuthorizationRestServiceImpl extends AbstractAuthorizedRestResource
     super(engineName,AUTHORIZATION, ANY, objectMapper);
   }
 
-  public AuthorizationCheckResultDto isUserAuthorized(String permissionName, String resourceName, Integer resourceType, String resourceId) {
+  public AuthorizationCheckResultDto isUserAuthorized(String permissionName, String resourceName, Integer resourceType, String resourceId, String userId) {
 
     // validate request:
     if(permissionName == null) {
@@ -73,19 +84,36 @@ public class AuthorizationRestServiceImpl extends AbstractAuthorizedRestResource
 
     final AuthorizationService authorizationService = processEngine.getAuthorizationService();
 
-    // create new authorization dto implementing both Permission and Resource
-    AuthorizationUtil authorizationUtil = new AuthorizationUtil(resourceName, resourceType, permissionName);
+    ResourceUtil resource = new ResourceUtil(resourceName, resourceType);
+    ProcessEngineConfigurationImpl processEngineConfiguration = (ProcessEngineConfigurationImpl) getProcessEngine().getProcessEngineConfiguration();
+    Permission permission = processEngineConfiguration.getPermissionProvider().getPermissionForName(permissionName, resourceType);
+    String currentUserId = currentAuthentication.getUserId();
 
     boolean isUserAuthorized = false;
-    if(resourceId == null || Authorization.ANY.equals(resourceId)) {
-      isUserAuthorized = authorizationService.isUserAuthorized(currentAuthentication.getUserId(), currentAuthentication.getGroupIds(), authorizationUtil, authorizationUtil);
 
+    String userIdToCheck;
+    List<String> groupIdsToCheck = new ArrayList<>();
+
+    if(userId != null && !userId.equals(currentUserId)) {
+      boolean isCurrentUserAuthorized = authorizationService.isUserAuthorized(currentUserId, currentAuthentication.getGroupIds(), Permissions.READ, Resources.AUTHORIZATION);
+      if (!isCurrentUserAuthorized) {
+        throw new InvalidRequestException(Status.FORBIDDEN, "You must have READ permission for Authorization resource.");
+      }
+      userIdToCheck = userId;
+      groupIdsToCheck = getUserGroups(userId);
     } else {
-      isUserAuthorized = authorizationService.isUserAuthorized(currentAuthentication.getUserId(), currentAuthentication.getGroupIds(), authorizationUtil, authorizationUtil, resourceId);
-
+      // userId == null || userId.equals(currentUserId)
+      userIdToCheck = currentUserId;
+      groupIdsToCheck = currentAuthentication.getGroupIds();
     }
 
-    return new AuthorizationCheckResultDto(isUserAuthorized, authorizationUtil, resourceId);
+    if(resourceId == null || Authorization.ANY.equals(resourceId)) {
+      isUserAuthorized = authorizationService.isUserAuthorized(userIdToCheck, groupIdsToCheck, permission, resource);
+    } else {
+      isUserAuthorized = authorizationService.isUserAuthorized(userIdToCheck, groupIdsToCheck, permission, resource, resourceId);
+    }
+
+    return new AuthorizationCheckResultDto(isUserAuthorized, permissionName, resource, resourceId);
   }
 
   public AuthorizationResource getAuthorization(String id) {
@@ -134,7 +162,7 @@ public class AuthorizationRestServiceImpl extends AbstractAuthorizedRestResource
       resultList = query.list();
     }
 
-    return AuthorizationDto.fromAuthorizationList(resultList);
+    return AuthorizationDto.fromAuthorizationList(resultList, processEngine.getProcessEngineConfiguration());
   }
 
   public CountResultDto getAuthorizationCount(UriInfo uriInfo) {
@@ -152,7 +180,7 @@ public class AuthorizationRestServiceImpl extends AbstractAuthorizedRestResource
     final AuthorizationService authorizationService = processEngine.getAuthorizationService();
 
     Authorization newAuthorization = authorizationService.createNewAuthorization(dto.getType());
-    AuthorizationCreateDto.update(dto, newAuthorization);
+    AuthorizationCreateDto.update(dto, newAuthorization, processEngine.getProcessEngineConfiguration());
 
     newAuthorization = authorizationService.saveAuthorization(newAuthorization);
 
@@ -173,6 +201,19 @@ public class AuthorizationRestServiceImpl extends AbstractAuthorizedRestResource
 
   protected IdentityService getIdentityService() {
     return getProcessEngine().getIdentityService();
+  }
+
+  protected List<String> getUserGroups(String userId) {
+    List<Group> userGroups = getIdentityService().createGroupQuery()
+        .groupMember(userId)
+        .unlimitedList();
+
+    List<String> groupIds = new ArrayList<>();
+    for (Group group : userGroups) {
+      groupIds.add(group.getId());
+    }
+
+    return groupIds;
   }
 
 }

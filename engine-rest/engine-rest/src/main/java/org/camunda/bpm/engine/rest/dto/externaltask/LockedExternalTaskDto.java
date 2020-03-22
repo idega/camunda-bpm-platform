@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,6 +39,7 @@ public class LockedExternalTaskDto {
   protected Date lockExpirationTime;
   protected String processDefinitionId;
   protected String processDefinitionKey;
+  protected String processDefinitionVersionTag;
   protected String processInstanceId;
   protected Integer retries;
   protected boolean suspended;
@@ -68,6 +73,9 @@ public class LockedExternalTaskDto {
   }
   public String getProcessDefinitionKey() {
     return processDefinitionKey;
+  }
+  public String getProcessDefinitionVersionTag() {
+    return processDefinitionVersionTag;
   }
   public String getProcessInstanceId() {
     return processInstanceId;
@@ -114,12 +122,13 @@ public class LockedExternalTaskDto {
     dto.lockExpirationTime = task.getLockExpirationTime();
     dto.processDefinitionId = task.getProcessDefinitionId();
     dto.processDefinitionKey = task.getProcessDefinitionKey();
+    dto.processDefinitionVersionTag = task.getProcessDefinitionVersionTag();
     dto.processInstanceId = task.getProcessInstanceId();
     dto.retries = task.getRetries();
     dto.topicName = task.getTopicName();
     dto.workerId = task.getWorkerId();
     dto.tenantId = task.getTenantId();
-    dto.variables = VariableValueDto.fromVariableMap(task.getVariables());
+    dto.variables = VariableValueDto.fromMap(task.getVariables());
     dto.priority = task.getPriority();
     dto.businessKey = task.getBusinessKey();
 
@@ -127,13 +136,36 @@ public class LockedExternalTaskDto {
   }
 
   public static List<LockedExternalTaskDto> fromLockedExternalTasks(List<LockedExternalTask> tasks) {
-    List<LockedExternalTaskDto> dtos = new ArrayList<LockedExternalTaskDto>();
+    List<LockedExternalTaskDto> dtos = new ArrayList<>();
 
     for (LockedExternalTask task : tasks) {
       dtos.add(LockedExternalTaskDto.fromLockedExternalTask(task));
     }
 
     return dtos;
+  }
+  @Override
+  public String toString() {
+    return 
+        "LockedExternalTaskDto [activityId=" + activityId
+        + ", activityInstanceId=" + activityInstanceId
+        + ", errorMessage=" + errorMessage
+        + ", errorDetails=" + errorDetails
+        + ", executionId=" + executionId
+        + ", id=" + id
+        + ", lockExpirationTime=" + lockExpirationTime
+        + ", processDefinitionId=" + processDefinitionId
+        + ", processDefinitionKey=" + processDefinitionKey
+        + ", processDefinitionVersionTag=" + processDefinitionVersionTag
+        + ", processInstanceId=" + processInstanceId
+        + ", retries=" + retries
+        + ", suspended=" + suspended
+        + ", workerId=" + workerId
+        + ", topicName=" + topicName
+        + ", tenantId=" + tenantId
+        + ", variables=" + variables
+        + ", priority=" + priority
+        + ", businessKey=" + businessKey + "]";
   }
 
 }

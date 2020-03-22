@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -813,6 +817,113 @@ public class HumanTaskPlanItemHandlerTest extends CmmnElementHandlerTest {
 
     String expression = "${myExpression}";
     String event = TaskListener.EVENTNAME_ASSIGNMENT;
+    taskListener.setCamundaEvent(event);
+    taskListener.setCamundaExpression(expression);
+
+    // when
+    CmmnActivity activity = handler.handleElement(planItem, context);
+
+    // then
+    assertEquals(0, activity.getListeners().size());
+
+    HumanTaskActivityBehavior behavior = (HumanTaskActivityBehavior) activity.getActivityBehavior();
+    TaskDefinition taskDefinition = behavior.getTaskDefinition();
+
+    assertNotNull(taskDefinition);
+
+    assertEquals(1, taskDefinition.getTaskListeners().size());
+
+    List<TaskListener> createListeners = taskDefinition.getTaskListeners(event);
+    assertEquals(1, createListeners.size());
+    TaskListener listener = createListeners.get(0);
+
+    assertTrue(listener instanceof ExpressionTaskListener);
+
+    ExpressionTaskListener expressionListener = (ExpressionTaskListener) listener;
+    assertEquals(expression, expressionListener.getExpressionText());
+
+  }
+
+  @Test
+  public void testUpdateTaskListenerByClass() {
+    // given:
+    ExtensionElements extensionElements = addExtensionElements(humanTask);
+    CamundaTaskListener taskListener = createElement(extensionElements, null, CamundaTaskListener.class);
+
+    String className = "org.camunda.bpm.test.tasklistener.ABC";
+    String event = TaskListener.EVENTNAME_UPDATE;
+    taskListener.setCamundaEvent(event);
+    taskListener.setCamundaClass(className);
+
+    // when
+    CmmnActivity activity = handler.handleElement(planItem, context);
+
+    // then
+    assertEquals(0, activity.getListeners().size());
+
+    HumanTaskActivityBehavior behavior = (HumanTaskActivityBehavior) activity.getActivityBehavior();
+    TaskDefinition taskDefinition = behavior.getTaskDefinition();
+
+    assertNotNull(taskDefinition);
+
+    assertEquals(1, taskDefinition.getTaskListeners().size());
+
+    List<TaskListener> createListeners = taskDefinition.getTaskListeners(event);
+    assertEquals(1, createListeners.size());
+    TaskListener listener = createListeners.get(0);
+
+    assertTrue(listener instanceof ClassDelegateTaskListener);
+
+    ClassDelegateTaskListener classDelegateListener = (ClassDelegateTaskListener) listener;
+    assertEquals(className, classDelegateListener.getClassName());
+    assertTrue(classDelegateListener.getFieldDeclarations().isEmpty());
+
+  }
+
+  @Test
+  public void testUpdateTaskListenerByDelegateExpression() {
+    // given:
+    ExtensionElements extensionElements = addExtensionElements(humanTask);
+    CamundaTaskListener taskListener = createElement(extensionElements, null, CamundaTaskListener.class);
+
+    String delegateExpression = "${myDelegateExpression}";
+    String event = TaskListener.EVENTNAME_UPDATE;
+    taskListener.setCamundaEvent(event);
+    taskListener.setCamundaDelegateExpression(delegateExpression);
+
+    // when
+    CmmnActivity activity = handler.handleElement(planItem, context);
+
+    // then
+    assertEquals(0, activity.getListeners().size());
+
+    HumanTaskActivityBehavior behavior = (HumanTaskActivityBehavior) activity.getActivityBehavior();
+    TaskDefinition taskDefinition = behavior.getTaskDefinition();
+
+    assertNotNull(taskDefinition);
+
+    assertEquals(1, taskDefinition.getTaskListeners().size());
+
+    List<TaskListener> createListeners = taskDefinition.getTaskListeners(event);
+    assertEquals(1, createListeners.size());
+    TaskListener listener = createListeners.get(0);
+
+    assertTrue(listener instanceof DelegateExpressionTaskListener);
+
+    DelegateExpressionTaskListener delegateExpressionListener = (DelegateExpressionTaskListener) listener;
+    assertEquals(delegateExpression, delegateExpressionListener.getExpressionText());
+    assertTrue(delegateExpressionListener.getFieldDeclarations().isEmpty());
+
+  }
+
+  @Test
+  public void testUpdateTaskListenerByExpression() {
+    // given:
+    ExtensionElements extensionElements = addExtensionElements(humanTask);
+    CamundaTaskListener taskListener = createElement(extensionElements, null, CamundaTaskListener.class);
+
+    String expression = "${myExpression}";
+    String event = TaskListener.EVENTNAME_UPDATE;
     taskListener.setCamundaEvent(event);
     taskListener.setCamundaExpression(expression);
 

@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.util;
 
 import java.util.List;
@@ -28,12 +31,22 @@ import org.junit.runner.Description;
 public class ProcessEngineBootstrapRule extends TestWatcher {
 
   private ProcessEngine processEngine;
+  protected ProcessEngineConfigurator processEngineConfigurator;
 
   public ProcessEngineBootstrapRule() {
     this("camunda.cfg.xml");
   }
 
   public ProcessEngineBootstrapRule(String configurationResource) {
+    this(configurationResource, null);
+  }
+
+  public ProcessEngineBootstrapRule(ProcessEngineConfigurator processEngineConfigurator) {
+    this("camunda.cfg.xml", processEngineConfigurator);
+  }
+
+  public ProcessEngineBootstrapRule(String configurationResource, ProcessEngineConfigurator processEngineConfigurator) {
+    this.processEngineConfigurator = processEngineConfigurator;
     this.processEngine = bootstrapEngine(configurationResource);
   }
 
@@ -45,6 +58,9 @@ public class ProcessEngineBootstrapRule extends TestWatcher {
   }
 
   public ProcessEngineConfiguration configureEngine(ProcessEngineConfigurationImpl configuration) {
+    if (processEngineConfigurator != null) {
+      processEngineConfigurator.configureEngine(configuration);
+    }
     return configuration;
   }
 

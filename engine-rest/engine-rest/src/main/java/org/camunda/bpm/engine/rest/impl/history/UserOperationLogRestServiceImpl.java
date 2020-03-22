@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,11 +19,13 @@ package org.camunda.bpm.engine.rest.impl.history;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
+import org.camunda.bpm.engine.rest.dto.AnnotationDto;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
 import org.camunda.bpm.engine.rest.dto.history.UserOperationLogEntryDto;
 import org.camunda.bpm.engine.rest.dto.history.UserOperationLogQueryDto;
 import org.camunda.bpm.engine.rest.history.UserOperationLogRestService;
 
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.util.List;
 
@@ -60,4 +66,23 @@ public class UserOperationLogRestServiceImpl implements UserOperationLogRestServ
       return UserOperationLogEntryDto.map(query.listPage(firstResult, maxResults));
     }
   }
+
+  @Override
+  public Response setAnnotation(String operationId, AnnotationDto annotationDto) {
+    String annotation = annotationDto.getAnnotation();
+
+    processEngine.getHistoryService()
+        .setAnnotationForOperationLogById(operationId, annotation);
+
+    return Response.noContent().build();
+  }
+
+  @Override
+  public Response clearAnnotation(String operationId) {
+    processEngine.getHistoryService()
+        .clearAnnotationForOperationLogById(operationId);
+
+    return Response.noContent().build();
+  }
+
 }

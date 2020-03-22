@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,28 +14,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.history.dmn;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
+import org.camunda.bpm.dmn.engine.impl.DefaultDmnEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.history.HistoricDecisionInputInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.api.variables.JavaSerializable;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
+import org.camunda.bpm.engine.test.util.ResetDmnConfigUtil;
 import org.camunda.bpm.engine.variable.Variables;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -67,9 +78,40 @@ public class HistoricDecisionInstanceInputOutputValueTest {
   @Rule
   public ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
 
+  @After
+  public void tearDown() {
+    ClockUtil.setCurrentTime(new Date());
+  }
+
+  @Before
+  public void enableDmnFeelLegacyBehavior() {
+    DefaultDmnEngineConfiguration dmnEngineConfiguration =
+        engineRule.getProcessEngineConfiguration()
+            .getDmnEngineConfiguration();
+
+    ResetDmnConfigUtil.reset(dmnEngineConfiguration)
+        .enableFeelLegacyBehavior(true)
+        .init();
+  }
+
+  @After
+  public void disableDmnFeelLegacyBehavior() {
+
+    DefaultDmnEngineConfiguration dmnEngineConfiguration =
+        engineRule.getProcessEngineConfiguration()
+            .getDmnEngineConfiguration();
+
+    ResetDmnConfigUtil.reset(dmnEngineConfiguration)
+        .enableFeelLegacyBehavior(false)
+        .init();
+  }
+
   @Test
   @Deployment(resources = { DECISION_PROCESS, DECISION_SINGLE_OUTPUT_DMN })
-  public void decisionInputInstanceValue() {
+  public void decisionInputInstanceValue() throws ParseException {
+    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+    Date fixedDate = sdf.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
 
     startProcessInstanceAndEvaluateDecision(inputValue);
 
@@ -80,11 +122,15 @@ public class HistoricDecisionInstanceInputOutputValueTest {
     HistoricDecisionInputInstance inputInstance = inputInstances.get(0);
     assertThat(inputInstance.getTypeName(), is(valueType));
     assertThat(inputInstance.getValue(), is(inputValue));
+    assertThat(inputInstance.getCreateTime(), is(fixedDate));
   }
 
   @Test
   @Deployment(resources = { DECISION_PROCESS, DECISION_SINGLE_OUTPUT_DMN })
-  public void decisionOutputInstanceValue() {
+  public void decisionOutputInstanceValue() throws ParseException {
+    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+    Date fixedDate = sdf.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
 
     startProcessInstanceAndEvaluateDecision(inputValue);
 
@@ -95,6 +141,7 @@ public class HistoricDecisionInstanceInputOutputValueTest {
     HistoricDecisionOutputInstance outputInstance = outputInstances.get(0);
     assertThat(outputInstance.getTypeName(), is(valueType));
     assertThat(outputInstance.getValue(), is(inputValue));
+    assertThat(outputInstance.getCreateTime(), is(fixedDate));
   }
 
   protected ProcessInstance startProcessInstanceAndEvaluateDecision(Object input) {

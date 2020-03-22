@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,7 +36,9 @@ import java.util.List;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.camunda.bpm.engine.rest.dto.message.MessageCorrelationResultDto;
+import org.camunda.bpm.engine.rest.dto.message.MessageCorrelationResultWithVariableDto;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResult;
+import org.camunda.bpm.engine.runtime.MessageCorrelationResultWithVariables;
 
 public class MessageRestServiceImpl extends AbstractRestProcessEngineAware implements MessageRestService {
 
@@ -48,19 +54,19 @@ public class MessageRestServiceImpl extends AbstractRestProcessEngineAware imple
     if (messageDto.getTenantId() != null && messageDto.isWithoutTenantId()) {
       throw new InvalidRequestException(Status.BAD_REQUEST, "Parameter 'tenantId' cannot be used together with parameter 'withoutTenantId'.");
     }
+    boolean variablesInResultEnabled = messageDto.isVariablesInResultEnabled();
+    if (!messageDto.isResultEnabled() && variablesInResultEnabled) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, "Parameter 'variablesInResultEnabled' cannot be used without 'resultEnabled' set to true.");
+    }
 
-    List<MessageCorrelationResultDto> resultDtos = new ArrayList<MessageCorrelationResultDto>();
+    List<MessageCorrelationResultDto> resultDtos = new ArrayList<>();
     try {
       MessageCorrelationBuilder correlation = createMessageCorrelationBuilder(messageDto);
-      if (!messageDto.isAll()) {
-        MessageCorrelationResult result = correlation.correlateWithResult();
-        resultDtos.add(MessageCorrelationResultDto.fromMessageCorrelationResult(result));
-      } else {
-        List<MessageCorrelationResult> results = correlation.correlateAllWithResult();
-        for (MessageCorrelationResult result : results) {
-          resultDtos.add(MessageCorrelationResultDto.fromMessageCorrelationResult(result));
+        if (!variablesInResultEnabled) {
+          resultDtos.addAll(correlate(messageDto, correlation));
+        } else {
+          resultDtos.addAll(correlateWithVariablesEnabled(messageDto, correlation));
         }
-      }
     } catch (RestException e) {
       String errorMessage = String.format("Cannot deliver message: %s", e.getMessage());
       throw new InvalidRequestException(e.getStatus(), e, errorMessage);
@@ -69,6 +75,34 @@ public class MessageRestServiceImpl extends AbstractRestProcessEngineAware imple
       throw new RestException(Status.BAD_REQUEST, e);
     }
     return createResponse(resultDtos, messageDto);
+  }
+
+  protected List<MessageCorrelationResultDto> correlate(CorrelationMessageDto messageDto, MessageCorrelationBuilder correlation) {
+    List<MessageCorrelationResultDto> resultDtos = new ArrayList<>();
+    if (!messageDto.isAll()) {
+      MessageCorrelationResult result = correlation.correlateWithResult();
+      resultDtos.add(MessageCorrelationResultDto.fromMessageCorrelationResult(result));
+    } else {
+      List<MessageCorrelationResult> results = correlation.correlateAllWithResult();
+      for (MessageCorrelationResult result : results) {
+        resultDtos.add(MessageCorrelationResultDto.fromMessageCorrelationResult(result));
+      }
+    }
+    return resultDtos;
+  }
+
+  protected List<MessageCorrelationResultWithVariableDto> correlateWithVariablesEnabled(CorrelationMessageDto messageDto, MessageCorrelationBuilder correlation) {
+    List<MessageCorrelationResultWithVariableDto> resultDtos = new ArrayList<>();
+    if (!messageDto.isAll()) {
+      MessageCorrelationResultWithVariables result = correlation.correlateWithResultAndVariables(false);
+      resultDtos.add(MessageCorrelationResultWithVariableDto.fromMessageCorrelationResultWithVariables(result));
+    } else {
+      List<MessageCorrelationResultWithVariables> results = correlation.correlateAllWithResultAndVariables(false);
+      for (MessageCorrelationResultWithVariables result : results) {
+        resultDtos.add(MessageCorrelationResultWithVariableDto.fromMessageCorrelationResultWithVariables(result));
+      }
+    }
+    return resultDtos;
   }
 
 

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,9 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.runtime.migration;
 
+import java.util.Date;
 import java.util.List;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -531,6 +535,44 @@ public class SetProcessDefinitionVersionCmdTest extends PluggableProcessEngineTe
     repositoryService.deleteDeployment(deployment.getId(), true);
   }
 
+  /**
+   * See https://app.camunda.com/jira/browse/CAM-9505
+   */
+  @Deployment(resources = TEST_PROCESS_ONE_JOB)
+  public void testPreserveTimestampOnUpdatedIncident() {
+    // given
+    ProcessInstance instance =
+        runtimeService.startProcessInstanceByKey("oneJobProcess", Variables.createVariables().putValue("shouldFail", true));
+
+    executeAvailableJobs();
+
+    Incident incident = runtimeService.createIncidentQuery().singleResult();
+    assertNotNull(incident);
+
+    Date timestamp = incident.getIncidentTimestamp();
+
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService
+      .createDeployment()
+      .addClasspathResource(TEST_PROCESS_ONE_JOB)
+      .deploy();
+
+    ProcessDefinition newDefinition =
+        repositoryService.createProcessDefinitionQuery().deploymentId(deployment.getId()).singleResult();
+    assertNotNull(newDefinition);
+
+    // when
+    CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutorTxRequired();
+    commandExecutor.execute(new SetProcessDefinitionVersionCmd(instance.getId(), 2));
+
+    Incident migratedIncident = runtimeService.createIncidentQuery().singleResult();
+
+    // then
+    assertEquals(timestamp, migratedIncident.getIncidentTimestamp());
+
+    // cleanup
+    repositoryService.deleteDeployment(deployment.getId(), true);
+  }
+
   @Deployment(resources = TEST_PROCESS_ATTACHED_TIMER)
   public void testSetProcessDefinitionVersionAttachedTimer() {
     // given a process instance
@@ -655,12 +697,12 @@ public class SetProcessDefinitionVersionCmdTest extends PluggableProcessEngineTe
         List<UserOperationLogEntry> userOperations = historyService
             .createUserOperationLogQuery()
             .processInstanceId(processInstance.getId())
+            .operationType(UserOperationLogEntry.OPERATION_TYPE_MODIFY_PROCESS_INSTANCE)
             .list();
 
         assertEquals(1, userOperations.size());
 
         UserOperationLogEntry userOperationLogEntry = userOperations.get(0);
-        assertEquals(UserOperationLogEntry.OPERATION_TYPE_MODIFY_PROCESS_INSTANCE, userOperationLogEntry.getOperationType());
         assertEquals("processDefinitionVersion", userOperationLogEntry.getProperty());
         assertEquals("1", userOperationLogEntry.getOrgValue());
         assertEquals("2", userOperationLogEntry.getNewValue());

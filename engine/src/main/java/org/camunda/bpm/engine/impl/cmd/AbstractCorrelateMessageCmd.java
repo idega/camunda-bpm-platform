@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +21,15 @@ import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionVariableSnapshotObserver;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.runtime.CorrelationHandlerResult;
 import org.camunda.bpm.engine.impl.runtime.MessageCorrelationResultImpl;
-import org.camunda.bpm.engine.runtime.MessageCorrelationResult;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResultType;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.variable.VariableMap;
+import org.camunda.bpm.engine.variable.Variables;
 
 /**
  * @author Thorben Lindhauer
@@ -37,6 +43,10 @@ public abstract class AbstractCorrelateMessageCmd {
 
   protected final MessageCorrelationBuilderImpl builder;
 
+  protected ExecutionVariableSnapshotObserver variablesListener;
+  protected boolean variablesEnabled = false;
+  protected boolean deserializeVariableValues = false;
+
   /**
    * Initialize the command with a builder
    *
@@ -45,6 +55,12 @@ public abstract class AbstractCorrelateMessageCmd {
   protected AbstractCorrelateMessageCmd(MessageCorrelationBuilderImpl builder) {
     this.builder = builder;
     this.messageName = builder.getMessageName();
+  }
+
+  protected AbstractCorrelateMessageCmd(MessageCorrelationBuilderImpl builder, boolean variablesEnabled, boolean deserializeVariableValues) {
+    this(builder);
+    this.variablesEnabled = variablesEnabled;
+    this.deserializeVariableValues = deserializeVariableValues;
   }
 
   protected void triggerExecution(CommandContext commandContext, CorrelationHandlerResult correlationResult) {
@@ -60,9 +76,13 @@ public abstract class AbstractCorrelateMessageCmd {
     ActivityImpl messageStartEvent = processDefinitionEntity.findActivity(correlationResult.getStartEventActivityId());
     ExecutionEntity processInstance = processDefinitionEntity.createProcessInstance(builder.getBusinessKey(), messageStartEvent);
 
-    processInstance.setVariablesLocal(builder.getPayloadProcessInstanceVariablesLocal());
+    if (variablesEnabled) {
+      variablesListener = new ExecutionVariableSnapshotObserver(processInstance, false, deserializeVariableValues);
+    }
 
-    processInstance.start(builder.getPayloadProcessInstanceVariables());
+    VariableMap startVariables = resolveStartVariables();
+
+    processInstance.start(startVariables);
 
     return processInstance;
   }
@@ -83,15 +103,36 @@ public abstract class AbstractCorrelateMessageCmd {
     }
   }
 
-  protected MessageCorrelationResult createMessageCorrelationResult(final CommandContext commandContext, final CorrelationHandlerResult handlerResult) {
-    MessageCorrelationResultImpl result = new MessageCorrelationResultImpl(handlerResult);
+  protected MessageCorrelationResultImpl createMessageCorrelationResult(final CommandContext commandContext, final CorrelationHandlerResult handlerResult) {
+    MessageCorrelationResultImpl resultWithVariables = new MessageCorrelationResultImpl(handlerResult);
     if (MessageCorrelationResultType.Execution.equals(handlerResult.getResultType())) {
+      ExecutionEntity execution = findProcessInstanceExecution(commandContext, handlerResult);
+      if (variablesEnabled && execution != null) {
+        variablesListener = new ExecutionVariableSnapshotObserver(execution, false, deserializeVariableValues);
+      }
       triggerExecution(commandContext, handlerResult);
     } else {
       ProcessInstance instance = instantiateProcess(commandContext, handlerResult);
-      result.setProcessInstance(instance);
+      resultWithVariables.setProcessInstance(instance);
     }
-    return result;
+
+    if (variablesListener != null) {
+      resultWithVariables.setVariables(variablesListener.getVariables());
+    }
+
+    return resultWithVariables;
+  }
+
+  protected ExecutionEntity findProcessInstanceExecution(final CommandContext commandContext, final CorrelationHandlerResult handlerResult) {
+    ExecutionEntity execution = commandContext.getExecutionManager().findExecutionById(handlerResult.getExecution().getProcessInstanceId());
+    return execution;
+  }
+
+  protected VariableMap resolveStartVariables() {
+    VariableMap mergedVariables = Variables.createVariables();
+    mergedVariables.putAll(builder.getPayloadProcessInstanceVariables());
+    mergedVariables.putAll(builder.getPayloadProcessInstanceVariablesLocal());
+    return mergedVariables;
   }
 
 }

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,19 +16,22 @@
  */
 package org.camunda.bpm.engine.test.bpmn.iomapping;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.ParseException;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.impl.persistence.entity.TimerEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.test.Deployment;
 
 /**
@@ -111,8 +118,9 @@ public class InputOutputEventTest extends PluggableProcessEngineTestCase {
         .addClasspathResource("org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputEventTest.testMessageStartEvent.bpmn20.xml")
         .deploy();
       fail("expected exception");
-    } catch (ProcessEngineException e) {
+    } catch (ParseException e) {
       assertTextPresent("camunda:inputOutput mapping unsupported for element type 'startEvent'", e.getMessage());
+      assertThat(e.getResorceReports().get(0).getErrors().get(0).getMainElementId()).isEqualTo("start");
     }
   }
 
@@ -123,8 +131,9 @@ public class InputOutputEventTest extends PluggableProcessEngineTestCase {
         .addClasspathResource("org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputEventTest.testNoneEndEvent.bpmn20.xml")
         .deploy();
       fail("expected exception");
-    } catch (ProcessEngineException e) {
+    } catch (ParseException e) {
       assertTextPresent("camunda:outputParameter not allowed for element type 'endEvent'", e.getMessage());
+      assertThat(e.getResorceReports().get(0).getErrors().get(0).getMainElementId()).isEqualTo("endMapping");
     }
   }
 
@@ -140,6 +149,91 @@ public class InputOutputEventTest extends PluggableProcessEngineTestCase {
     assertEquals("mappedValue", mappedVariables.get("mappedVariable"));
   }
 
+  @Deployment
+  public void testMessageCatchAfterEventGateway() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+
+    // when
+    runtimeService.createMessageCorrelation("foo")
+      .processInstanceId(processInstance.getId())
+      .correlate();
+
+    // then
+    VariableInstance variableInstance = runtimeService.createVariableInstanceQuery()
+      .processInstanceIdIn(processInstance.getId())
+      .variableName("foo")
+      .singleResult();
+
+    assertNotNull(variableInstance);
+    assertEquals("bar", variableInstance.getValue());
+  }
+
+  @Deployment
+  public void testTimerCatchAfterEventGateway() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+
+    Job job = managementService.createJobQuery()
+        .processInstanceId(processInstance.getId())
+        .singleResult();
+
+    // when
+    managementService.executeJob(job.getId());
+
+    // then
+    VariableInstance variableInstance = runtimeService.createVariableInstanceQuery()
+      .processInstanceIdIn(processInstance.getId())
+      .variableName("foo")
+      .singleResult();
+
+    assertNotNull(variableInstance);
+    assertEquals("bar", variableInstance.getValue());
+  }
+
+  @Deployment
+  public void testSignalCatchAfterEventGateway() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+
+    Execution execution = runtimeService.createExecutionQuery()
+      .processInstanceId(processInstance.getId())
+      .signalEventSubscriptionName("foo")
+      .singleResult();
+
+    assertNotNull(execution);
+
+    // when
+    runtimeService.signalEventReceived("foo", execution.getId());
+
+    // then
+    VariableInstance variableInstance = runtimeService.createVariableInstanceQuery()
+      .processInstanceIdIn(processInstance.getId())
+      .variableName("foo")
+      .singleResult();
+
+    assertNotNull(variableInstance);
+    assertEquals("bar", variableInstance.getValue());
+  }
+
+  @Deployment
+  public void testConditionalCatchAfterEventGateway() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+
+    // when
+    runtimeService.setVariable(processInstance.getId(), "var", 1);
+
+    // then
+    VariableInstance variableInstance = runtimeService.createVariableInstanceQuery()
+      .processInstanceIdIn(processInstance.getId())
+      .variableName("foo")
+      .singleResult();
+
+    assertNotNull(variableInstance);
+    assertEquals("bar", variableInstance.getValue());
+  }
+
   public void testMessageBoundaryEvent() {
     try {
       repositoryService
@@ -147,8 +241,9 @@ public class InputOutputEventTest extends PluggableProcessEngineTestCase {
         .addClasspathResource("org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputEventTest.testMessageBoundaryEvent.bpmn20.xml")
         .deploy();
       fail("expected exception");
-    } catch (ProcessEngineException e) {
+    } catch (ParseException e) {
       assertTextPresent("camunda:inputOutput mapping unsupported for element type 'boundaryEvent'", e.getMessage());
+      assertThat(e.getResorceReports().get(0).getErrors().get(0).getMainElementId()).isEqualTo("messageBoundary");
     }
   }
 

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +41,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueField;
 import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueUpdateListener;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
@@ -68,7 +73,7 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   protected String textValue;
   protected String textValue2;
 
-  protected ByteArrayField byteArrayField = new ByteArrayField(this);
+  protected ByteArrayField byteArrayField = new ByteArrayField(this, ResourceTypes.RUNTIME);
 
   protected TypedValueField typedValueField = new TypedValueField(this, true);
 
@@ -157,7 +162,7 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   }
 
   public Object getPersistentState() {
-    Map<String, Object> persistentState = new HashMap<String, Object>();
+    Map<String, Object> persistentState = new HashMap<>();
     if (typedValueField.getSerializerName() != null) {
       persistentState.put("serializerName", typedValueField.getSerializerName());
     }
@@ -257,18 +262,14 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   }
 
   public TypedValue getTypedValue() {
-    return typedValueField.getTypedValue();
+    return typedValueField.getTypedValue(isTransient);
   }
 
   public TypedValue getTypedValue(boolean deserializeValue) {
-    return typedValueField.getTypedValue(deserializeValue);
+    return typedValueField.getTypedValue(deserializeValue, isTransient);
   }
 
   public void setValue(TypedValue value) {
-    if(isTransient()) {
-      throw LOG.updateTransientVariableException(getName());
-    }
-
     // clear value fields
     clearValueFields();
 
@@ -651,13 +652,13 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
 
   @Override
   public Set<String> getReferencedEntityIds() {
-    Set<String> referencedEntityIds = new HashSet<String>();
+    Set<String> referencedEntityIds = new HashSet<>();
     return referencedEntityIds;
   }
 
   @Override
   public Map<String, Class> getReferencedEntitiesIdAndClass() {
-    Map<String, Class> referenceIdAndClass = new HashMap<String, Class>();
+    Map<String, Class> referenceIdAndClass = new HashMap<>();
 
     if (processInstanceId != null){
       referenceIdAndClass.put(processInstanceId, ExecutionEntity.class);

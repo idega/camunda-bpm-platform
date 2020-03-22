@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +26,7 @@ import org.apache.ibatis.executor.BatchExecutorException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
+import org.camunda.bpm.engine.repository.ResourceType;
 
 /**
  * @author Roman Smirnov
@@ -43,8 +48,8 @@ public class ExceptionUtil {
     return result;
   }
 
-  public static ByteArrayEntity createJobExceptionByteArray(byte[] byteArray) {
-    return createExceptionByteArray("job.exceptionByteArray", byteArray);
+  public static ByteArrayEntity createJobExceptionByteArray(byte[] byteArray, ResourceType type) {
+    return createExceptionByteArray("job.exceptionByteArray", byteArray, type);
   }
 
   /**
@@ -55,17 +60,17 @@ public class ExceptionUtil {
    *
    * @param name - type\source of the exception
    * @param byteArray - payload of the exception
+   * @param type - resource type of the exception
    * @return persisted entity
    */
-  public static ByteArrayEntity createExceptionByteArray(String name, byte[] byteArray) {
+  public static ByteArrayEntity createExceptionByteArray(String name, byte[] byteArray, ResourceType type) {
     ByteArrayEntity result = null;
 
     if (byteArray != null) {
-      result = new ByteArrayEntity(name, byteArray);
-      Context
-          .getCommandContext()
-          .getDbEntityManager()
-          .insert(result);
+      result = new ByteArrayEntity(name, byteArray, type);
+      Context.getCommandContext()
+        .getByteArrayManager()
+        .insertByteArray(result);
     }
 
     return result;
@@ -76,6 +81,7 @@ public class ExceptionUtil {
     for (SQLException ex: sqlExceptionList) {
       if (ex.getMessage().contains("too long")
         || ex.getMessage().contains("too large")
+        || ex.getMessage().contains("TOO LARGE")
         || ex.getMessage().contains("ORA-01461")
         || ex.getMessage().contains("ORA-01401")
         || ex.getMessage().contains("data would be truncated")
@@ -141,6 +147,8 @@ public class ExceptionUtil {
           || ("23506".equals(exception.getSQLState()) && exception.getErrorCode() == 23506))
         // DB2
         || (exception.getMessage().toLowerCase().contains("sqlstate=23503") && exception.getMessage().toLowerCase().contains("sqlcode=-530"))
+        // DB2 zOS
+        || ("23503".equals(exception.getSQLState()) && exception.getErrorCode() == -530)
         ) {
 
         return true;

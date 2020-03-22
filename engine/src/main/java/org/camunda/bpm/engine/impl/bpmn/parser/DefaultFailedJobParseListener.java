@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -46,7 +50,7 @@ public class DefaultFailedJobParseListener extends AbstractBpmnParseListener {
   @Override
   public void parseStartEvent(Element startEventElement, ScopeImpl scope, ActivityImpl startEventActivity) {
     String type = startEventActivity.getProperties().get(BpmnProperties.TYPE);
-    if (type != null && type.equals(START_TIMER_EVENT)) {
+    if (type != null && type.equals(START_TIMER_EVENT) || isAsync(startEventActivity)) {
       this.setFailedJobRetryTimeCycleValue(startEventElement, startEventActivity);
     }
   }
@@ -70,9 +74,34 @@ public class DefaultFailedJobParseListener extends AbstractBpmnParseListener {
   @Override
   public void parseIntermediateCatchEvent(Element intermediateEventElement, ScopeImpl scope, ActivityImpl activity) {
     String type = activity.getProperties().get(BpmnProperties.TYPE);
-    if (type != null && type.equals(INTERMEDIATE_TIMER)) {
+    if (type != null && type.equals(INTERMEDIATE_TIMER) || isAsync(activity)) {
       this.setFailedJobRetryTimeCycleValue(intermediateEventElement, activity);
     }
+  }
+
+  @Override
+  public void parseEndEvent(Element endEventElement, ScopeImpl scope, ActivityImpl activity) {
+    parseActivity(endEventElement, activity);
+  }
+
+  @Override
+  public void parseExclusiveGateway(Element exclusiveGwElement, ScopeImpl scope, ActivityImpl activity) {
+    parseActivity(exclusiveGwElement, activity);
+  }
+
+  @Override
+  public void parseInclusiveGateway(Element exclusiveGwElement, ScopeImpl scope, ActivityImpl activity) {
+    parseActivity(exclusiveGwElement, activity);
+  }
+
+  @Override
+  public void parseEventBasedGateway(Element exclusiveGwElement, ScopeImpl scope, ActivityImpl activity) {
+    parseActivity(exclusiveGwElement, activity);
+  }
+
+  @Override
+  public void parseParallelGateway(Element exclusiveGwElement, ScopeImpl scope, ActivityImpl activity) {
+    parseActivity(exclusiveGwElement, activity);
   }
 
   @Override

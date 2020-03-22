@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,16 +34,18 @@ public class VariableContextElResolver extends ELResolver {
 
   @Override
   public Object getValue(ELContext context, Object base, Object property) {
-    VariableContext variableContext = (VariableContext) context.getContext(VariableContext.class);
-    if(variableContext != null) {
-      if(VAR_CTX_KEY.equals(property)) {
-        context.setPropertyResolved(true);
-        return variableContext;
-      }
-      TypedValue typedValue = variableContext.resolve((String) property);
-      if(typedValue != null) {
-        context.setPropertyResolved(true);
-        return unpack(typedValue);
+    if (base == null) {
+      VariableContext variableContext = (VariableContext) context.getContext(VariableContext.class);
+      if(variableContext != null) {
+        if(VAR_CTX_KEY.equals(property)) {
+          context.setPropertyResolved(true);
+          return variableContext;
+        }
+        TypedValue typedValue = variableContext.resolve((String) property);
+        if(typedValue != null) {
+          context.setPropertyResolved(true);
+          return unpack(typedValue);
+        }
       }
     }
     return null;

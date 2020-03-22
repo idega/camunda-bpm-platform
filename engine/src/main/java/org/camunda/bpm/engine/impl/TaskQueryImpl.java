@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,8 +23,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -44,6 +50,43 @@ import org.camunda.bpm.engine.variable.type.ValueType;
  */
 public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements TaskQuery {
 
+  /*
+   * When adding a property filter that supports Tasklist filters,
+   * the following classes need to be modified:
+   *
+   * <ol>
+   *   <li>
+   *     Update the {@code TaskQuery} interface;
+   *   </li>
+   *   <li>
+   *     Implement the new property filter and getters/setters in {@code TaskQueryImpl};
+   *   </li>
+   *   <li>
+   *     Add the new property filter in the engine-rest {@code TaskQueryDto} class;
+   *   </li>
+   *   <li>
+   *     Use the new filter in the engine-rest {@code TaskQueryDto#applyFilters} method.
+   *     The method is used to provide Task filtering through the Rest API endpoint;
+   *   </li>
+   *   <li>
+   *     Initialize the new property filter in the engine-rest
+   *     {@code TaskQueryDto#fromQuery} method; The method is used to create a {@code TaskQueryDto}
+   *     from a serialized ("saved") Task query. This is used in Tasklist filters;
+   *   </li>
+   *   <li>
+   *     Add the property to the {@code JsonTaskQueryConverter} class, and make sure
+   *     it is included in the {@code JsonTaskQueryConverter#toJsonObject} and
+   *     {@code JsonTaskQueryConverter#toObject} methods. This is used to serialize/deserialize
+   *     Task queries for Tasklist filter usage.
+   *   </li>
+   *   <li>
+   *     Tests need to be added in: {@code TaskQueryTest} for Java API coverage,
+   *     {@code TaskRestServiceQueryTest} for Rest API coverage and
+   *     {@code FilterTaskQueryTest} for Tasklist filter coverage.
+   *   </li>
+   * </ol>
+   */
+
   private static final long serialVersionUID = 1L;
   protected String taskId;
   protected String name;
@@ -57,6 +100,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected Integer maxPriority;
   protected String assignee;
   protected String assigneeLike;
+  protected Set<String> assigneeIn;
   protected String involvedUser;
   protected String owner;
   protected Boolean unassigned;
@@ -72,6 +116,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected Boolean withoutCandidateUsers;
   protected Boolean includeAssignedTasks;
   protected String processInstanceId;
+  protected String[] processInstanceIdIn;
   protected String executionId;
   protected String[] activityInstanceIdIn;
   protected Date createTime;
@@ -100,6 +145,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected SuspensionState suspensionState;
   protected boolean initializeFormKeys = false;
   protected boolean taskNameCaseInsensitive = false;
+  
+  protected Boolean variableNamesIgnoreCase;
+  protected Boolean variableValuesIgnoreCase;
 
   protected String parentTaskId;
   protected boolean isTenantIdSet = false;
@@ -114,6 +162,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected String caseInstanceBusinessKey;
   protected String caseInstanceBusinessKeyLike;
   protected String caseExecutionId;
+
+  protected List<String> cachedCandidateGroups;
+  protected Map<String, List<String>> cachedUserGroups;
 
   // or query /////////////////////////////
   protected List<TaskQueryImpl> queries = new ArrayList<TaskQueryImpl>(Arrays.asList(this));
@@ -208,6 +259,19 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   public TaskQuery taskAssigneeLikeExpression(String assigneeLikeExpression) {
     ensureNotNull("Assignee like expression", assigneeLikeExpression);
     expressions.put("taskAssigneeLike", assigneeLikeExpression);
+    return this;
+  }
+
+  @Override
+  public TaskQuery taskAssigneeIn(String... assignees) {
+    ensureNotNull("Assignees", assignees);
+
+    Set<String> assigneeIn = new HashSet<>(assignees.length);
+    assigneeIn.addAll(Arrays.asList(assignees));
+
+    this.assigneeIn = assigneeIn;
+    expressions.remove("taskAssigneeIn");
+
     return this;
   }
 
@@ -424,6 +488,12 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   @Override
+  public TaskQuery processInstanceIdIn(String... processInstanceIds) {
+    this.processInstanceIdIn = processInstanceIds;
+    return this;
+  }
+
+  @Override
   public TaskQueryImpl processInstanceBusinessKey(String processInstanceBusinessKey) {
     this.processInstanceBusinessKey = processInstanceBusinessKey;
     expressions.remove("processInstanceBusinessKey");
@@ -614,7 +684,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     addVariable(variableName, variableValue, QueryOperator.NOT_EQUALS, true, false);
     return this;
   }
-
+  
   @Override
   public TaskQuery taskVariableValueLike(String variableName, String variableValue) {
     addVariable(variableName, variableValue, QueryOperator.LIKE, true, false);
@@ -650,7 +720,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     addVariable(variableName, variableValue, QueryOperator.EQUALS, false, true);
     return this;
   }
-
+  
   @Override
   public TaskQuery processVariableValueNotEquals(String variableName, Object variableValue) {
     addVariable(variableName, variableValue, QueryOperator.NOT_EQUALS, false, true);
@@ -904,36 +974,42 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   public List<String> getCandidateGroups() {
-    if (isOrQueryActive) {
-      if (candidateGroup != null && candidateGroups != null) {
-        ArrayList result = new ArrayList();
-        result.addAll(candidateGroups);
-        result.add(candidateGroup);
-        return result;
-      } else if (candidateGroups != null) {
-        return candidateGroups;
-      } else if (candidateGroup != null) {
-        ArrayList result = new ArrayList();
-        result.add(candidateGroup);
-        return result;
-      }
-
-      return null;
+    if (cachedCandidateGroups != null) {
+      return cachedCandidateGroups;
     }
 
     if (candidateGroup != null && candidateGroups != null) {
-      //get intersection of candidateGroups and candidateGroup
-      ArrayList result = new ArrayList(candidateGroups);
-      result.retainAll(Arrays.asList(candidateGroup));
-      return result;
+      cachedCandidateGroups = new ArrayList<>(candidateGroups);
+      if (!isOrQueryActive) {
+        // get intersection of candidateGroups and candidateGroup
+        cachedCandidateGroups.retainAll(Arrays.asList(candidateGroup));
+      } else {
+        // get union of candidateGroups and candidateGroup
+        if (!candidateGroups.contains(candidateGroup)) {
+          cachedCandidateGroups.add(candidateGroup);
+        }
+      }
     } else if (candidateGroup != null) {
-      return Arrays.asList(candidateGroup);
-    } else if (candidateUser != null) {
-      return getGroupsForCandidateUser(candidateUser);
+      cachedCandidateGroups = Arrays.asList(candidateGroup);
     } else if (candidateGroups != null) {
-      return candidateGroups;
+      cachedCandidateGroups = candidateGroups;
     }
-    return null;
+
+    if (candidateUser != null) {
+      List<String> groupsForCandidateUser = getGroupsForCandidateUser(candidateUser);
+
+      if (cachedCandidateGroups == null) {
+        cachedCandidateGroups = groupsForCandidateUser;
+      } else {
+        for (String group : groupsForCandidateUser) {
+          if (!cachedCandidateGroups.contains(group)) {
+            cachedCandidateGroups.add(group);
+          }
+        }
+      }
+    }
+
+    return cachedCandidateGroups;
   }
 
   public Boolean isWithCandidateGroups() {
@@ -981,17 +1057,33 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   protected List<String> getGroupsForCandidateUser(String candidateUser) {
-    List<Group> groups = Context
-      .getCommandContext()
-      .getReadOnlyIdentityProvider()
-      .createGroupQuery()
-      .groupMember(candidateUser)
-      .list();
-    List<String> groupIds = new ArrayList<String>();
+    Map<String, List<String>> cachedUserGroups = getCachedUserGroups();
+    if (cachedUserGroups.containsKey(candidateUser)) {
+      return cachedUserGroups.get(candidateUser);
+    }
+
+    List<Group> groups = Context.getCommandContext()
+        .getReadOnlyIdentityProvider()
+        .createGroupQuery()
+        .groupMember(candidateUser)
+        .list();
+    
+    List<String> groupIds = new ArrayList<>();
     for (Group group : groups) {
       groupIds.add(group.getId());
     }
+
+    cachedUserGroups.put(candidateUser, groupIds);
+
     return groupIds;
+  }
+
+  protected Map<String, List<String>> getCachedUserGroups() {
+    // store and retrieve cached user groups always from the first query
+    if (queries.get(0).cachedUserGroups == null) {
+      queries.get(0).cachedUserGroups = new HashMap<>();
+    }
+    return queries.get(0).cachedUserGroups;
   }
 
   protected void ensureOrExpressionsEvaluated() {
@@ -1016,7 +1108,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
       }
     }
   }
-
+  
   public void addVariable(String name, Object value, QueryOperator operator, boolean isTaskVariable, boolean isProcessInstanceVariable) {
     ensureNotNull("name", name);
 
@@ -1037,7 +1129,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
         break;
       }
     }
-    addVariable(new TaskQueryVariableValue(name, value, operator, isTaskVariable, isProcessInstanceVariable));
+
+    boolean shouldMatchVariableValuesIgnoreCase = Boolean.TRUE.equals(variableValuesIgnoreCase) && value != null && String.class.isAssignableFrom(value.getClass());
+    addVariable(new TaskQueryVariableValue(name, value, operator, isTaskVariable, isProcessInstanceVariable, Boolean.TRUE.equals(variableNamesIgnoreCase), shouldMatchVariableValuesIgnoreCase));
   }
 
   protected void addVariable(TaskQueryVariableValue taskQueryVariableValue) {
@@ -1253,6 +1347,8 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     ensureVariablesInitialized();
     checkQueryOk();
 
+    resetCachedCandidateGroups();
+
     //check if candidateGroup and candidateGroups intersect
     if (getCandidateGroup() != null && getCandidateGroupsInternal() != null && getCandidateGroups().isEmpty()) {
       return Collections.emptyList();
@@ -1277,6 +1373,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     ensureOrExpressionsEvaluated();
     ensureVariablesInitialized();
     checkQueryOk();
+
+    resetCachedCandidateGroups();
+
     //check if candidateGroup and candidateGroups intersect
     if (getCandidateGroup() != null && getCandidateGroupsInternal() != null && getCandidateGroups().isEmpty()) {
       return 0;
@@ -1284,6 +1383,13 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return commandContext
       .getTaskManager()
       .findTaskCountByQueryCriteria(this);
+  }
+
+  protected void resetCachedCandidateGroups() {
+    cachedCandidateGroups = null;
+    for (int i = 1; i < queries.size(); i++) {
+      queries.get(i).cachedCandidateGroups = null;
+    }
   }
 
   //getters ////////////////////////////////////////////////////////////////
@@ -1310,6 +1416,10 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public String getAssigneeLike() {
     return assigneeLike;
+  }
+
+  public Set<String> getAssigneeIn() {
+    return assigneeIn;
   }
 
   public String getInvolvedUser() {
@@ -1375,6 +1485,10 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public String getProcessInstanceId() {
     return processInstanceId;
+  }
+
+  public String[] getProcessInstanceIdIn() {
+    return processInstanceIdIn;
   }
 
   public String getExecutionId() {
@@ -1561,6 +1675,14 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return isTenantIdSet;
   }
 
+  public Boolean isVariableNamesIgnoreCase() {
+    return variableNamesIgnoreCase;
+  }
+
+  public Boolean isVariableValuesIgnoreCase() {
+    return variableValuesIgnoreCase;
+  }
+
   public List<TaskQueryImpl> getQueries() {
     return queries;
   }
@@ -1628,6 +1750,16 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     }
     else if (this.getAssigneeLike() != null) {
       extendedQuery.taskAssigneeLike(this.getAssigneeLike());
+    }
+
+    if (extendingQuery.getAssigneeIn() != null) {
+      extendedQuery.taskAssigneeIn(extendingQuery
+                                       .getAssigneeIn()
+                                       .toArray(new String[extendingQuery.getAssigneeIn().size()]));
+    }
+    else if (this.getAssigneeIn() != null) {
+      extendedQuery.taskAssigneeIn(this.getAssigneeIn()
+                                       .toArray(new String[this.getAssigneeIn().size()]));
     }
 
     if (extendingQuery.getInvolvedUser() != null) {
@@ -1701,6 +1833,12 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     }
     else if (this.getProcessInstanceId() != null) {
       extendedQuery.processInstanceId(this.getProcessInstanceId());
+    }
+
+    if (extendingQuery.getProcessInstanceIdIn() != null) {
+      extendedQuery.processInstanceIdIn(extendingQuery.getProcessInstanceIdIn());
+    } else if (this.processInstanceIdIn() != null) {
+      extendedQuery.processInstanceIdIn(this.getProcessInstanceIdIn());
     }
 
     if (extendingQuery.getExecutionId() != null) {
@@ -2127,4 +2265,21 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return queries.get(0);
   }
 
+  @Override
+  public TaskQuery matchVariableNamesIgnoreCase() {
+    this.variableNamesIgnoreCase = true;
+    for (TaskQueryVariableValue variable : this.variables) {
+      variable.setVariableNameIgnoreCase(true);
+    }
+    return this;
+  }
+
+  @Override
+  public TaskQuery matchVariableValuesIgnoreCase() {
+    this.variableValuesIgnoreCase = true;
+    for (TaskQueryVariableValue variable : this.variables) {
+      variable.setVariableValueIgnoreCase(true);
+    }
+    return this;
+  }
 }

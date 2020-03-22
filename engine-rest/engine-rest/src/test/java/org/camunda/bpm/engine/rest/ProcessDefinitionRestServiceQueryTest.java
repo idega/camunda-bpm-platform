@@ -1,9 +1,25 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.fest.assertions.Assertions.assertThat;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -33,8 +49,8 @@ import org.mockito.InOrder;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 public class ProcessDefinitionRestServiceQueryTest extends AbstractRestServiceTest {
 
@@ -450,6 +466,19 @@ public class ProcessDefinitionRestServiceQueryTest extends AbstractRestServiceTe
   }
 
   @Test
+  public void testProcessDefinitionWithoutVersionTag() {
+    given()
+      .queryParam("withoutVersionTag", true)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(PROCESS_DEFINITION_QUERY_URL);
+
+    verify(mockedQuery).withoutVersionTag();
+    verify(mockedQuery).list();
+  }
+
+  @Test
   public void testNotStartableInTasklist() {
     List<ProcessDefinition> processDefinitions = Arrays.asList(
       MockProvider.mockDefinition().isStartableInTasklist(false).build());
@@ -463,6 +492,23 @@ public class ProcessDefinitionRestServiceQueryTest extends AbstractRestServiceTe
       .get(PROCESS_DEFINITION_QUERY_URL);
 
     verify(mockedQuery).notStartableInTasklist();
+    verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testStartableInTasklistPermissionCheck() {
+    List<ProcessDefinition> processDefinitions = Arrays.asList(
+      MockProvider.mockDefinition().isStartableInTasklist(false).build());
+    mockedQuery = setUpMockDefinitionQuery(processDefinitions);
+
+    given()
+      .queryParam("startablePermissionCheck", true)
+      .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .get(PROCESS_DEFINITION_QUERY_URL);
+
+    verify(mockedQuery).startablePermissionCheck();
     verify(mockedQuery).list();
   }
 

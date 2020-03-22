@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,13 +16,14 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -28,6 +33,7 @@ import static org.mockito.Mockito.when;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
@@ -46,8 +52,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  * @author Daniel Meyer
@@ -106,6 +112,9 @@ public class HistoricVariableInstanceRestServiceInteractionTest extends Abstract
       .body("caseExecutionId", equalTo(builder.getCaseExecutionId()))
       .body("taskId", equalTo(builder.getTaskId()))
       .body("tenantId", equalTo(builder.getTenantId()))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_CREATE_TIME))
+      .body("removalTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_REMOVAL_TIME))
+      .body("rootProcessInstanceId", equalTo(builder.getRootProcessInstanceId()))
     .when().get(VARIABLE_INSTANCE_URL);
 
     verify(variableInstanceQueryMock, times(1)).disableBinaryFetching();
@@ -147,6 +156,9 @@ public class HistoricVariableInstanceRestServiceInteractionTest extends Abstract
       .body("caseExecutionId", equalTo(builder.getCaseExecutionId()))
       .body("taskId", equalTo(builder.getTaskId()))
       .body("tenantId", equalTo(builder.getTenantId()))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_CREATE_TIME))
+      .body("removalTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_REMOVAL_TIME))
+      .body("rootProcessInstanceId", equalTo(builder.getRootProcessInstanceId()))
     .when().get(VARIABLE_INSTANCE_URL);
 
     verify(variableInstanceQueryMock, times(1)).disableBinaryFetching();
@@ -189,6 +201,9 @@ public class HistoricVariableInstanceRestServiceInteractionTest extends Abstract
       .body("caseExecutionId", equalTo(builder.getCaseExecutionId()))
       .body("taskId", equalTo(builder.getTaskId()))
       .body("tenantId", equalTo(builder.getTenantId()))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_CREATE_TIME))
+      .body("removalTime", equalTo(MockProvider.EXAMPLE_HISTORIC_VARIABLE_INSTANCE_REMOVAL_TIME))
+      .body("rootProcessInstanceId", equalTo(builder.getRootProcessInstanceId()))
     .when().get(VARIABLE_INSTANCE_URL);
 
     verify(variableInstanceQueryMock, times(1)).disableBinaryFetching();
@@ -342,5 +357,31 @@ public class HistoricVariableInstanceRestServiceInteractionTest extends Abstract
     .and().contentType(ContentType.TEXT)
     .and().body(is(equalTo(new String())))
     .when().get(VARIABLE_INSTANCE_BINARY_DATA_URL);
+  }
+  
+  @Test
+  public void testDeleteSingleVariableInstanceById() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_VARIABLE_INSTANCE_ID)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(VARIABLE_INSTANCE_URL);
+
+    verify(historyServiceMock).deleteHistoricVariableInstance(MockProvider.EXAMPLE_VARIABLE_INSTANCE_ID);
+  }
+  
+  @Test
+  public void testDeleteNonExistingVariableInstanceById() {
+    doThrow(new NotFoundException("No historic variable instance found with id: 'NON_EXISTING_ID'"))
+    .when(historyServiceMock).deleteHistoricVariableInstance("NON_EXISTING_ID");
+    
+    given()
+      .pathParam("id", "NON_EXISTING_ID")
+    .expect()
+      .statusCode(Status.NOT_FOUND.getStatusCode())
+      .body(containsString("No historic variable instance found with id: 'NON_EXISTING_ID'"))
+    .when()
+      .delete(VARIABLE_INSTANCE_URL);
   }
 }

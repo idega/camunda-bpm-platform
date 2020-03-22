@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -63,8 +66,7 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
    * @see #findLatestProcessDefinitionByKeyAndTenantId(String, String)
    */
   public ProcessDefinitionEntity findLatestProcessDefinitionByKey(String processDefinitionKey) {
-    @SuppressWarnings("unchecked")
-    List<ProcessDefinitionEntity> processDefinitions = getDbEntityManager().selectList("selectLatestProcessDefinitionByKey", configureParameterizedQuery(processDefinitionKey));
+    List<ProcessDefinitionEntity> processDefinitions = findLatestProcessDefinitionsByKey(processDefinitionKey);
 
     if (processDefinitions.isEmpty()) {
       return null;
@@ -75,6 +77,18 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
     } else {
       throw LOG.multipleTenantsForProcessDefinitionKeyException(processDefinitionKey);
     }
+  }
+
+  /**
+   * @return the latest versions of the process definition with the given key (from any tenant),
+   *         contains multiple elements if more than one tenant has a process definition with
+   *         the given key
+   *
+   * @see #findLatestProcessDefinitionByKey(String)
+   */
+  @SuppressWarnings("unchecked")
+  public List<ProcessDefinitionEntity> findLatestProcessDefinitionsByKey(String processDefinitionKey) {
+    return getDbEntityManager().selectList("selectLatestProcessDefinitionByKey", configureParameterizedQuery(processDefinitionKey));
   }
 
   /**
@@ -230,10 +244,11 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
    *
    * @param processDefinitionId the process definition id
    * @param skipCustomListeners true if the custom listeners should be skipped at process instance deletion
+   * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
    */
-  protected void cascadeDeleteProcessInstancesForProcessDefinition(String processDefinitionId, boolean skipCustomListeners) {
+  protected void cascadeDeleteProcessInstancesForProcessDefinition(String processDefinitionId, boolean skipCustomListeners, boolean skipIoMappings) {
     getProcessInstanceManager()
-        .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted process definition", true, skipCustomListeners, false);
+        .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted process definition", true, skipCustomListeners, skipIoMappings);
   }
 
   /**
@@ -326,13 +341,14 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
   * @param cascadeToHistory if true the history will deleted as well
   * @param cascadeToInstances if true the process instances are deleted as well
   * @param skipCustomListeners if true skips the custom listeners on deletion of instances
+  * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
   */
-  public void deleteProcessDefinition(ProcessDefinition processDefinition, String processDefinitionId, boolean cascadeToHistory, boolean cascadeToInstances, boolean skipCustomListeners) {
+  public void deleteProcessDefinition(ProcessDefinition processDefinition, String processDefinitionId, boolean cascadeToHistory, boolean cascadeToInstances, boolean skipCustomListeners, boolean skipIoMappings) {
 
     if (cascadeToHistory) {
       cascadeDeleteHistoryForProcessDefinition(processDefinitionId);
       if (cascadeToInstances) {
-        cascadeDeleteProcessInstancesForProcessDefinition(processDefinitionId, skipCustomListeners);
+        cascadeDeleteProcessInstancesForProcessDefinition(processDefinitionId, skipCustomListeners, skipIoMappings);
       }
     } else {
       ProcessInstanceQueryImpl procInstQuery = new ProcessInstanceQueryImpl().processDefinitionId(processDefinitionId);

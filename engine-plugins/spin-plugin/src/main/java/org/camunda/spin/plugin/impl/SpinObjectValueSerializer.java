@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,11 +23,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.impl.variable.serializer.AbstractObjectValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
+import org.camunda.spin.DeserializationTypeValidator;
 import org.camunda.spin.spi.DataFormat;
 import org.camunda.spin.spi.DataFormatMapper;
 import org.camunda.spin.spi.DataFormatReader;
@@ -40,6 +46,7 @@ public class SpinObjectValueSerializer extends AbstractObjectValueSerializer {
 
   protected String name;
   protected DataFormat<?> dataFormat;
+  protected DeserializationTypeValidator validator;
 
   public SpinObjectValueSerializer(String name, DataFormat<?> dataFormat) {
     super(dataFormat.getName());
@@ -81,16 +88,17 @@ public class SpinObjectValueSerializer extends AbstractObjectValueSerializer {
   }
 
   protected Object deserializeFromByteArray(byte[] bytes, String objectTypeName) throws Exception {
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
     DataFormatMapper mapper = dataFormat.getMapper();
     DataFormatReader reader = dataFormat.getReader();
 
     ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-    InputStreamReader inReader = new InputStreamReader(bais, Context.getProcessEngineConfiguration().getDefaultCharset());
+    InputStreamReader inReader = new InputStreamReader(bais, processEngineConfiguration.getDefaultCharset());
     BufferedReader bufferedReader = new BufferedReader(inReader);
 
     try {
       Object mappedObject = reader.readInput(bufferedReader);
-      return mapper.mapInternalToJava(mappedObject, objectTypeName);
+      return mapper.mapInternalToJava(mappedObject, objectTypeName, getValidator(processEngineConfiguration));
     }
     finally{
       IoUtil.closeSilently(bais);
@@ -101,6 +109,18 @@ public class SpinObjectValueSerializer extends AbstractObjectValueSerializer {
 
   protected boolean canSerializeValue(Object value) {
     return dataFormat.getMapper().canMap(value);
+  }
+
+  protected DeserializationTypeValidator getValidator(final ProcessEngineConfigurationImpl processEngineConfiguration) {
+    if (validator == null && processEngineConfiguration.isDeserializationTypeValidationEnabled()) {
+      validator = new DeserializationTypeValidator() {
+          @Override
+          public boolean validate(String type) {
+            return processEngineConfiguration.getDeserializationTypeValidator().validate(type);
+          }
+      };
+    }
+    return validator;
   }
 
 }

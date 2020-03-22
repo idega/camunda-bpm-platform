@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
 
+    Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+    under one or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information regarding copyright
+    ownership. Camunda licenses this file to you under the Apache License,
+    Version 2.0; you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.history.event.HistoricDecisionInputInstanceEntity">
@@ -18,7 +35,10 @@
           LONG_,
           TEXT_,
           TEXT2_,
-          TENANT_ID_
+          TENANT_ID_,
+          CREATE_TIME_,
+          ROOT_PROC_INST_ID_,
+          REMOVAL_TIME_
       ) values ( 
           #{id, jdbcType=VARCHAR},
           #{decisionInstanceId, jdbcType=VARCHAR},
@@ -30,10 +50,53 @@
           #{longValue, jdbcType=BIGINT},
           #{textValue, jdbcType=VARCHAR},
           #{textValue2, jdbcType=VARCHAR},
-          #{tenantId, jdbcType=VARCHAR}
+          #{tenantId, jdbcType=VARCHAR},
+          #{createTime, jdbcType=TIMESTAMP},
+          #{rootProcessInstanceId, jdbcType=VARCHAR},
+          #{removalTime, jdbcType=TIMESTAMP}
       )
   </insert>
-  
+
+  <!-- update -->
+  <update id="updateHistoricDecisionInputInstancesByRootProcessInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_DEC_IN set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateHistoricDecisionInputInstancesByProcessInstanceId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_DEC_IN
+      set REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+      where DEC_INST_ID_ IN (
+        SELECT ID_
+        FROM ${prefix}ACT_HI_DECINST
+        WHERE PROC_INST_ID_ = #{processInstanceId, jdbcType=TIMESTAMP}
+      )
+  </update>
+
+  <update id="updateHistoricDecisionInputInstancesByRootDecisionInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_DEC_IN set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where DEC_INST_ID_ IN (
+        SELECT ID_
+        FROM ${prefix}ACT_HI_DECINST
+        WHERE ROOT_DEC_INST_ID_ = #{rootDecisionInstanceId, jdbcType=VARCHAR}) <!-- null for root dec instances -->
+           or DEC_INST_ID_ = #{rootDecisionInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateHistoricDecisionInputInstancesByDecisionInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_DEC_IN set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where DEC_INST_ID_ = #{decisionInstanceId, jdbcType=VARCHAR}
+  </update>
+
   <!-- delete -->
   
   <delete id="deleteHistoricDecisionInputInstance" parameterType="org.camunda.bpm.engine.impl.history.event.HistoricDecisionInputInstanceEntity">
@@ -71,6 +134,52 @@
       and D.BYTEARRAY_ID_ is not NULL
   </delete>
 
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteHistoricDecisionInputInstancesByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DEC_IN
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDecisionInputInstancesByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DEC_IN
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDecisionInputInstancesByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DEC_IN
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_DEC_IN
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
+  </delete>
+
   <!-- result map -->
 
   <resultMap id="historicDecisionInputInstanceResultMap" type="org.camunda.bpm.engine.impl.history.event.HistoricDecisionInputInstanceEntity">
@@ -85,6 +194,9 @@
     <result property="textValue2" column="TEXT2_" jdbcType="VARCHAR" />
     <result property="longValue" column="LONG_" jdbcType="BIGINT" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="createTime" column="CREATE_TIME_" jdbcType="TIMESTAMP"/>
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
   </resultMap>
   
   <!-- select -->

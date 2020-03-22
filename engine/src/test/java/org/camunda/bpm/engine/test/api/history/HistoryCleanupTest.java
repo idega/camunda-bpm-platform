@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,22 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.history;
 
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.TimeZone;
-import org.apache.commons.lang.time.DateUtils;
+import org.apache.commons.lang3.time.DateUtils;
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -36,12 +31,12 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.cfg.BatchWindowConfiguration;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmd.HistoryCleanupCmd;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.BatchWindow;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupHelper;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobHandlerConfiguration;
 import org.camunda.bpm.engine.impl.metrics.Meter;
@@ -49,7 +44,8 @@ import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.ExceptionUtil;
-import org.camunda.bpm.engine.impl.util.json.JSONObject;
+import org.camunda.bpm.engine.impl.util.JsonUtil;
+import org.camunda.bpm.engine.impl.util.ParseUtil;
 import org.camunda.bpm.engine.management.MetricIntervalValue;
 import org.camunda.bpm.engine.management.Metrics;
 import org.camunda.bpm.engine.management.MetricsQuery;
@@ -69,10 +65,27 @@ import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.RuleChain;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.TimeZone;
+
+import static org.camunda.bpm.engine.ProcessEngineConfiguration.HISTORY_CLEANUP_STRATEGY_END_TIME_BASED;
+import static org.camunda.bpm.engine.ProcessEngineConfiguration.HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED;
+import static org.camunda.bpm.engine.history.UserOperationLogEntry.CATEGORY_OPERATOR;
+import static org.camunda.bpm.engine.history.UserOperationLogEntry.OPERATION_TYPE_CREATE_HISTORY_CLEANUP_JOB;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -95,6 +108,7 @@ public class HistoryCleanupTest {
   protected static final String DECISION = "decision";
   protected static final String ONE_TASK_CASE = "case";
   private static final int NUMBER_OF_THREADS = 3;
+  private static final String USER_ID = "demo";
 
   private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -125,6 +139,7 @@ public class HistoryCleanupTest {
   private ManagementService managementService;
   private CaseService caseService;
   private RepositoryService repositoryService;
+  private IdentityService identityService;
   private ProcessEngineConfigurationImpl processEngineConfiguration;
 
   @Rule
@@ -137,11 +152,15 @@ public class HistoryCleanupTest {
     managementService = engineRule.getManagementService();
     caseService = engineRule.getCaseService();
     repositoryService = engineRule.getRepositoryService();
+    identityService = engineRule.getIdentityService();
     processEngineConfiguration = engineRule.getProcessEngineConfiguration();
     testRule.deploy("org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml", "org/camunda/bpm/engine/test/api/dmn/Example.dmn", "org/camunda/bpm/engine/test/api/cmmn/oneTaskCaseWithHistoryTimeToLive.cmmn");
     defaultStartTime = processEngineConfiguration.getHistoryCleanupBatchWindowStartTime();
     defaultEndTime = processEngineConfiguration.getHistoryCleanupBatchWindowEndTime();
     defaultBatchSize = processEngineConfiguration.getHistoryCleanupBatchSize();
+    processEngineConfiguration.setHistoryCleanupStrategy(HISTORY_CLEANUP_STRATEGY_END_TIME_BASED);
+
+    identityService.setAuthenticatedUserId(USER_ID);
   }
 
   @After
@@ -150,6 +169,8 @@ public class HistoryCleanupTest {
     processEngineConfiguration.setHistoryCleanupBatchWindowStartTime(defaultStartTime);
     processEngineConfiguration.setHistoryCleanupBatchWindowEndTime(defaultEndTime);
     processEngineConfiguration.setHistoryCleanupBatchSize(defaultBatchSize);
+    processEngineConfiguration.setHistoryCleanupStrategy(HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED);
+    processEngineConfiguration.setHistoryCleanupEnabled(true);
 
     processEngineConfiguration.getCommandExecutorTxRequired().execute(new Command<Void>() {
       public Void execute(CommandContext commandContext) {
@@ -194,6 +215,7 @@ public class HistoryCleanupTest {
 
     clearMetrics();
 
+    identityService.clearAuthentication();
   }
 
   protected void clearMetrics() {
@@ -215,6 +237,43 @@ public class HistoryCleanupTest {
 
     //then
     assertResult(0);
+
+
+    List<UserOperationLogEntry> userOperationLogEntries = historyService
+      .createUserOperationLogQuery()
+      .operationType(OPERATION_TYPE_CREATE_HISTORY_CLEANUP_JOB)
+      .list();
+
+    assertEquals(1, userOperationLogEntries.size());
+
+    UserOperationLogEntry entry = userOperationLogEntries.get(0);
+    assertEquals(CATEGORY_OPERATOR, entry.getCategory());
+  }
+
+  @Test
+  public void shouldThrowExceptionWhenCleanupDisabled_1() {
+    // given
+    processEngineConfiguration.setHistoryCleanupEnabled(false);
+
+    // then
+    thrown.expect(BadUserRequestException.class);
+    thrown.expectMessage("History cleanup is disabled for this engine");
+
+    // when
+    historyService.cleanUpHistoryAsync();
+  }
+
+  @Test
+  public void shouldThrowExceptionWhenCleanupDisabled_2() {
+    // given
+    processEngineConfiguration.setHistoryCleanupEnabled(false);
+
+    // then
+    thrown.expect(BadUserRequestException.class);
+    thrown.expectMessage("History cleanup is disabled for this engine");
+
+    // when
+    historyService.cleanUpHistoryAsync(true);
   }
 
   @Test
@@ -267,7 +326,7 @@ public class HistoryCleanupTest {
 
   private HistoryCleanupJobHandlerConfiguration getHistoryCleanupJobHandlerConfiguration(Job job) {
     return HistoryCleanupJobHandlerConfiguration
-          .fromJson(new JSONObject(((JobEntity) job).getJobHandlerConfigurationRaw()));
+          .fromJson(JsonUtil.asObject(((JobEntity) job).getJobHandlerConfigurationRaw()));
   }
 
   private void runHistoryCleanup() {
@@ -501,7 +560,7 @@ public class HistoryCleanupTest {
     ClockUtil.setCurrentTime(DateUtils.addDays(new Date(), DAYS_IN_THE_PAST));
 
     //create 3 process instances
-    List<String> processInstanceIds = new ArrayList<String>();
+    List<String> processInstanceIds = new ArrayList<>();
     Map<String, Object> variables = Variables.createVariables().putValue("pojo", new TestPojo("okay", 13.37));
     for (int i = 0; i < PROCESS_INSTANCES_COUNT; i++) {
       ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testProcess", variables);
@@ -936,13 +995,13 @@ public class HistoryCleanupTest {
   }
 
   @Test
-  public void testLessThanThresholdOutsideBatchWindowAfterMidnight() {
+  public void testLessThanThresholdOutsideBatchWindowAfterMidnight() throws ParseException {
     //given
     prepareData(5);
 
     //we're outside batch window, batch window passes midnight
-    Date date = new Date();
-    ClockUtil.setCurrentTime(DateUtils.setMinutes(DateUtils.setHours(date, 1), 10));  //01:10
+    Date date = addDays(new Date(), 1);
+    ClockUtil.setCurrentTime(DateUtils.setMinutes(DateUtils.setHours(date, 1), 10));  // 01:10 tomorrow
     processEngineConfiguration.setHistoryCleanupBatchWindowStartTime("23:00");
     processEngineConfiguration.setHistoryCleanupBatchWindowEndTime("01:00");
     processEngineConfiguration.initHistoryCleanup();
@@ -1035,15 +1094,82 @@ public class HistoryCleanupTest {
   }
 
   @Test
-  public void testLessThanThresholdWithinBatchWindowAfterMidnight() {
+  public void testLessThanThresholdWithinBatchWindowAfterMidnight() throws ParseException {
     //given
     prepareData(5);
 
     //we're within batch window, but batch window passes midnight
-    Date date = new Date();
-    ClockUtil.setCurrentTime(DateUtils.setMinutes(DateUtils.setHours(date, 0), 10));  //00:10
+    Date date = addDays(new Date(), 1);
+    ClockUtil.setCurrentTime(DateUtils.setMinutes(DateUtils.setHours(date, 0), 10));  // 00:10 tomorrow
     processEngineConfiguration.setHistoryCleanupBatchWindowStartTime("23:00");
     processEngineConfiguration.setHistoryCleanupBatchWindowEndTime("01:00");
+    processEngineConfiguration.initHistoryCleanup();
+
+    //when
+    runHistoryCleanup(false);
+
+    //then
+    final List<Job> historyCleanupJobs = historyService.findHistoryCleanupJobs();
+    for (Job job : historyCleanupJobs) {
+      JobEntity jobEntity = (JobEntity) job;
+      HistoryCleanupJobHandlerConfiguration configuration = getConfiguration(jobEntity);
+
+      //job rescheduled till current time + delay
+      Date nextRun = getNextRunWithDelay(ClockUtil.getCurrentTime(), 0);
+      assertTrue(jobEntity.getDuedate().equals(nextRun) || jobEntity.getDuedate().after(nextRun));
+      Date nextRunMax = DateUtils.addSeconds(ClockUtil.getCurrentTime(), HistoryCleanupJobHandlerConfiguration.MAX_DELAY);
+      assertTrue(jobEntity.getDuedate().before(nextRunMax));
+
+      //countEmptyRuns incremented
+      assertEquals(1, configuration.getCountEmptyRuns());
+    }
+
+    //data is still removed
+    assertResult(0);
+  }
+
+  @Test
+  @Ignore("CAM-10055")
+  public void testLessThanThresholdOutsideBatchWindowAfterMidnightDaylightSaving() throws ParseException {
+    //given
+    prepareData(5);
+  
+    //we're outside batch window, batch window passes midnight
+    ClockUtil.setCurrentTime(sdf.parse("2019-05-28T01:10:00"));  // 01:10
+    processEngineConfiguration.setHistoryCleanupBatchWindowStartTime("23:00CET");
+    processEngineConfiguration.setHistoryCleanupBatchWindowEndTime("01:00CET");
+    processEngineConfiguration.initHistoryCleanup();
+  
+    //when
+    String jobId = historyService.cleanUpHistoryAsync().getId();
+    managementService.executeJob(jobId);
+  
+    //then
+    JobEntity jobEntity = getJobEntity(jobId);
+    HistoryCleanupJobHandlerConfiguration configuration = getConfiguration(jobEntity);
+  
+    //job rescheduled till next batch window start
+    Date nextRun = getNextRunWithinBatchWindow(ClockUtil.getCurrentTime());
+    assertTrue(jobEntity.getDuedate().equals(nextRun));
+    assertTrue(nextRun.after(ClockUtil.getCurrentTime()));
+  
+    //countEmptyRuns canceled
+    assertEquals(0, configuration.getCountEmptyRuns());
+  
+    //nothing was removed
+    assertResult(5);
+  }
+
+  @Test
+  @Ignore("CAM-10055")
+  public void testLessThanThresholdWithinBatchWindowAfterMidnightDaylightSaving() throws ParseException {
+    //given
+    prepareData(5);
+
+    //we're within batch window, but batch window passes midnight
+    ClockUtil.setCurrentTime(sdf.parse("2018-05-14T00:10:00"));  // 00:10
+    processEngineConfiguration.setHistoryCleanupBatchWindowStartTime("23:00CET");
+    processEngineConfiguration.setHistoryCleanupBatchWindowEndTime("01:00CET");
     processEngineConfiguration.initHistoryCleanup();
 
     //when
@@ -1110,6 +1236,14 @@ public class HistoryCleanupTest {
     processEngineConfiguration.setHistoryCleanupBatchSize(500);
     processEngineConfiguration.initHistoryCleanup();
     assertEquals(processEngineConfiguration.getHistoryCleanupBatchSize(), 500);
+
+    processEngineConfiguration.setHistoryTimeToLive("5");
+    processEngineConfiguration.initHistoryCleanup();
+    assertEquals(5, ParseUtil.parseHistoryTimeToLive(processEngineConfiguration.getHistoryTimeToLive()).intValue());
+
+    processEngineConfiguration.setHistoryTimeToLive("P6D");
+    processEngineConfiguration.initHistoryCleanup();
+    assertEquals(6, ParseUtil.parseHistoryTimeToLive(processEngineConfiguration.getHistoryTimeToLive()).intValue());
   }
 
   @Test
@@ -1209,13 +1343,43 @@ public class HistoryCleanupTest {
     processEngineConfiguration.initHistoryCleanup();
   }
 
+  @Test
+  public void testConfigurationFailureMalformedHistoryTimeToLive() {
+    processEngineConfiguration.setHistoryTimeToLive("PP5555DDDD");
+
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("historyTimeToLive");
+
+    processEngineConfiguration.initHistoryCleanup();
+  }
+
+  @Test
+  public void testConfigurationFailureInvalidHistoryTimeToLive() {
+    processEngineConfiguration.setHistoryTimeToLive("invalidValue");
+
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("historyTimeToLive");
+
+    processEngineConfiguration.initHistoryCleanup();
+  }
+
+  @Test
+  public void testConfigurationFailureNegativeHistoryTimeToLive() {
+    processEngineConfiguration.setHistoryTimeToLive("-6");
+
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("historyTimeToLive");
+
+    processEngineConfiguration.initHistoryCleanup();
+  }
+
   private Date getNextRunWithinBatchWindow(Date currentTime) {
     return processEngineConfiguration.getBatchWindowManager().getNextBatchWindow(currentTime, processEngineConfiguration).getStart();
   }
 
   private HistoryCleanupJobHandlerConfiguration getConfiguration(JobEntity jobEntity) {
     String jobHandlerConfigurationRaw = jobEntity.getJobHandlerConfigurationRaw();
-    return HistoryCleanupJobHandlerConfiguration.fromJson(new JSONObject(jobHandlerConfigurationRaw));
+    return HistoryCleanupJobHandlerConfiguration.fromJson(JsonUtil.asObject(jobHandlerConfigurationRaw));
   }
 
   private void prepareData(int instanceCount) {
@@ -1225,10 +1389,10 @@ public class HistoryCleanupTest {
     prepareCMMNData(instanceCount - 2 * createdInstances);
   }
 
-  private void prepareBPMNData(int instanceCount, String businesskey) {
+  private void prepareBPMNData(int instanceCount, String definitionKey) {
     Date oldCurrentTime = ClockUtil.getCurrentTime();
     ClockUtil.setCurrentTime(DateUtils.addDays(new Date(), DAYS_IN_THE_PAST));
-    final List<String> ids = prepareHistoricProcesses(businesskey, getVariables(), instanceCount);
+    final List<String> ids = prepareHistoricProcesses(definitionKey, getVariables(), instanceCount);
     deleteProcessInstances(ids);
     ClockUtil.setCurrentTime(oldCurrentTime);
   }
@@ -1267,11 +1431,11 @@ public class HistoryCleanupTest {
     ClockUtil.setCurrentTime(oldCurrentTime);
   }
 
-  private List<String> prepareHistoricProcesses(String businessKey, VariableMap variables, Integer processInstanceCount) {
-    List<String> processInstanceIds = new ArrayList<String>();
+  private List<String> prepareHistoricProcesses(String definitionKey, VariableMap variables, Integer processInstanceCount) {
+    List<String> processInstanceIds = new ArrayList<>();
 
     for (int i = 0; i < processInstanceCount; i++) {
-      ProcessInstance processInstance = runtimeService.startProcessInstanceByKey(businessKey, variables);
+      ProcessInstance processInstance = runtimeService.startProcessInstanceByKey(definitionKey, variables);
       processInstanceIds.add(processInstance.getId());
     }
 
@@ -1298,6 +1462,13 @@ public class HistoryCleanupTest {
       + historyService.createHistoricDecisionInstanceQuery().count()
       + historyService.createHistoricCaseInstanceQuery().count();
     assertTrue(expectedInstanceCount <= count);
+  }
+
+  protected static Date addDays(Date date, int days) {
+    Calendar calendar = Calendar.getInstance();
+    calendar.setTime(date);
+    calendar.add(Calendar.DATE, days);
+    return calendar.getTime();
   }
 
 }

@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,12 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.json;
 
 import org.camunda.bpm.engine.impl.migration.MigrationPlanImpl;
 import org.camunda.bpm.engine.impl.util.JsonUtil;
-import org.camunda.bpm.engine.impl.util.json.JSONObject;
+import com.google.gson.JsonObject;
 import org.camunda.bpm.engine.migration.MigrationPlan;
 
 public class MigrationPlanJsonConverter extends JsonObjectConverter<MigrationPlan> {
@@ -26,8 +29,8 @@ public class MigrationPlanJsonConverter extends JsonObjectConverter<MigrationPla
   public static final String TARGET_PROCESS_DEFINITION_ID = "targetProcessDefinitionId";
   public static final String INSTRUCTIONS = "instructions";
 
-  public JSONObject toJsonObject(MigrationPlan migrationPlan) {
-    JSONObject json = new JSONObject();
+  public JsonObject toJsonObject(MigrationPlan migrationPlan) {
+    JsonObject json = JsonUtil.createObject();
 
     JsonUtil.addField(json, SOURCE_PROCESS_DEFINITION_ID, migrationPlan.getSourceProcessDefinitionId());
     JsonUtil.addField(json, TARGET_PROCESS_DEFINITION_ID, migrationPlan.getTargetProcessDefinitionId());
@@ -36,10 +39,10 @@ public class MigrationPlanJsonConverter extends JsonObjectConverter<MigrationPla
     return json;
   }
 
-  public MigrationPlan toObject(JSONObject json) {
-    MigrationPlanImpl migrationPlan = new MigrationPlanImpl(json.getString(SOURCE_PROCESS_DEFINITION_ID), json.getString(TARGET_PROCESS_DEFINITION_ID));
+  public MigrationPlan toObject(JsonObject json) {
+    MigrationPlanImpl migrationPlan = new MigrationPlanImpl(JsonUtil.getString(json, SOURCE_PROCESS_DEFINITION_ID), JsonUtil.getString(json, TARGET_PROCESS_DEFINITION_ID));
 
-    migrationPlan.setInstructions(JsonUtil.jsonArrayAsList(json.getJSONArray(INSTRUCTIONS), MigrationInstructionJsonConverter.INSTANCE));
+    migrationPlan.setInstructions(JsonUtil.asList(JsonUtil.getArray(json, INSTRUCTIONS), MigrationInstructionJsonConverter.INSTANCE));
 
     return migrationPlan;
   }

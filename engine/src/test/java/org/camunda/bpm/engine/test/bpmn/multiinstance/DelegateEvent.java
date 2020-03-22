@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineServices;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.runtime.Incident;
@@ -265,6 +270,11 @@ public class DelegateEvent implements DelegateExecution {
     throw notYetImplemented();
   }
 
+  @Override
+  public ProcessEngine getProcessEngine() {
+    throw notYetImplemented();
+  }
+
   public String getActivityInstanceId() {
     return activityInstanceId;
   }
@@ -338,6 +348,11 @@ public class DelegateEvent implements DelegateExecution {
 
   @Override
   public Incident createIncident(String incidentType, String configuration, String message) {
+    throw notYetImplemented();
+  }
+
+  @Override
+  public void setProcessBusinessKey(String businessKey) {
     throw notYetImplemented();
   }
 }

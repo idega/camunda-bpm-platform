@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.persistence.entity.util;
 
 import java.util.ArrayList;
@@ -63,11 +66,11 @@ public class TypedValueField implements DbEntityLifecycleAware, CommandContextLi
   public TypedValueField(ValueFields valueFields, boolean notifyOnImplicitUpdates) {
     this.valueFields = valueFields;
     this.notifyOnImplicitUpdates = notifyOnImplicitUpdates;
-    this.updateListeners = new ArrayList<TypedValueUpdateListener>();
+    this.updateListeners = new ArrayList<>();
   }
 
   public Object getValue() {
-    TypedValue typedValue = getTypedValue();
+    TypedValue typedValue = getTypedValue(false);
     if (typedValue != null) {
       return typedValue.getValue();
     } else {
@@ -75,22 +78,31 @@ public class TypedValueField implements DbEntityLifecycleAware, CommandContextLi
     }
   }
 
-  public TypedValue getTypedValue() {
-    return getTypedValue(true);
+  public TypedValue getTypedValue(boolean asTransientValue) {
+    return getTypedValue(true, asTransientValue);
   }
 
-  public TypedValue getTypedValue(boolean deserializeValue) {
-    if (cachedValue != null && cachedValue instanceof SerializableValue && Context.getCommandContext() != null) {
-      SerializableValue serializableValue = (SerializableValue) cachedValue;
-      if(deserializeValue && !serializableValue.isDeserialized()) {
-        // clear cached value in case it is not deserialized and user requests deserialized value
+  public TypedValue getTypedValue(boolean deserializeValue, boolean asTransientValue) {
+    if (Context.getCommandContext() != null) {
+      // in some circumstances we must invalidate the cached value instead of returning it
+
+      if (cachedValue != null && cachedValue instanceof SerializableValue) {
+        SerializableValue serializableValue = (SerializableValue) cachedValue;
+        if(deserializeValue && !serializableValue.isDeserialized()) {
+          // clear cached value in case it is not deserialized and user requests deserialized value
+          cachedValue = null;
+        }
+      }
+
+      if (cachedValue != null && (asTransientValue ^ cachedValue.isTransient())) {
+        // clear cached value if the value is not transient, but a transient value is requested
         cachedValue = null;
       }
     }
 
     if (cachedValue == null && errorMessage == null) {
       try {
-        cachedValue = getSerializer().readValue(valueFields, deserializeValue);
+        cachedValue = getSerializer().readValue(valueFields, deserializeValue, asTransientValue);
 
         if (notifyOnImplicitUpdates && isMutableValue(cachedValue)) {
           Context.getCommandContext().registerCommandContextListener(this);

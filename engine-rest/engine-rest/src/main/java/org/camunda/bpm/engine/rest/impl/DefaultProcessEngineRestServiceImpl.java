@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,6 +43,7 @@ import org.camunda.bpm.engine.rest.MigrationRestService;
 import org.camunda.bpm.engine.rest.ModificationRestService;
 import org.camunda.bpm.engine.rest.ProcessDefinitionRestService;
 import org.camunda.bpm.engine.rest.ProcessInstanceRestService;
+import org.camunda.bpm.engine.rest.SchemaLogRestService;
 import org.camunda.bpm.engine.rest.SignalRestService;
 import org.camunda.bpm.engine.rest.TaskRestService;
 import org.camunda.bpm.engine.rest.TenantRestService;
@@ -201,6 +206,16 @@ public class DefaultProcessEngineRestServiceImpl extends AbstractProcessEngineRe
   @Path(OptimizeRestService.PATH)
   public OptimizeRestService getOptimizeRestService() {
     return super.getOptimizeRestService(null);
+  }
+
+  @Path(VersionRestService.PATH)
+  public VersionRestService getVersionRestService() {
+    return super.getVersionRestService(null);
+  }
+
+  @Path(SchemaLogRestService.PATH)
+  public SchemaLogRestService getSchemaLogRestService() {
+    return super.getSchemaLogRestService(null);
   }
 
   @Override

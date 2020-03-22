@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +16,19 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.batch.Batch;
+import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
-import org.camunda.bpm.engine.impl.batch.BatchEntity;
+import org.camunda.bpm.engine.history.SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder;
+import org.camunda.bpm.engine.history.SetRemovalTimeToHistoricProcessInstancesBuilder;
+import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
@@ -29,21 +36,26 @@ import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.util.JsonPathUtil;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
-import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import javax.ws.rs.core.Response.Status;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DECISION_INSTANCE_ID;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -51,10 +63,12 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class HistoricProcessInstanceRestServiceInteractionTest extends AbstractRestServiceTest {
@@ -64,9 +78,12 @@ public class HistoricProcessInstanceRestServiceInteractionTest extends AbstractR
   
   protected static final String DELETE_REASON = "deleteReason";
   protected static final String TEST_DELETE_REASON = "test";
+  protected static final String FAIL_IF_NOT_EXISTS = "failIfNotExists";
   protected static final String HISTORIC_PROCESS_INSTANCE_URL = TEST_RESOURCE_ROOT_PATH + "/history/process-instance";
   protected static final String HISTORIC_SINGLE_PROCESS_INSTANCE_URL = HISTORIC_PROCESS_INSTANCE_URL + "/{id}";
   protected static final String DELETE_HISTORIC_PROCESS_INSTANCES_ASYNC_URL = HISTORIC_PROCESS_INSTANCE_URL + "/delete";
+  protected static final String SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL = HISTORIC_PROCESS_INSTANCE_URL + "/set-removal-time";
+  protected static final String HISTORIC_SINGLE_PROCESS_INSTANCE_VARIABLES_URL = HISTORIC_PROCESS_INSTANCE_URL + "/{id}/variable-instances";
 
   private HistoryService historyServiceMock;
 
@@ -163,6 +180,15 @@ public class HistoricProcessInstanceRestServiceInteractionTest extends AbstractR
   }
 
   @Test
+  public void testDeleteNonExistingProcessInstanceIfExists() {
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParam("failIfNotExists", false)
+    .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().delete(HISTORIC_SINGLE_PROCESS_INSTANCE_URL);
+    
+    verify(historyServiceMock).deleteHistoricProcessInstanceIfExists(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
+  }
+
+  @Test
   public void testDeleteProcessInstanceThrowsAuthorizationException() {
     String message = "expected exception";
     doThrow(new AuthorizationException(message)).when(historyServiceMock).deleteHistoricProcessInstance(anyString());
@@ -244,6 +270,253 @@ public class HistoricProcessInstanceRestServiceInteractionTest extends AbstractR
         .then().expect()
         .statusCode(Status.BAD_REQUEST.getStatusCode())
         .when().post(DELETE_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+  }
+  
+  @Test
+  public void testDeleteAllVariablesByProcessInstanceId() {
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(HISTORIC_SINGLE_PROCESS_INSTANCE_VARIABLES_URL);
+
+    verify(historyServiceMock).deleteHistoricVariableInstancesByProcessInstanceId(EXAMPLE_PROCESS_INSTANCE_ID);
+  }
+  
+  @Test
+  public void testDeleteAllVariablesForNonExistingProcessInstance() {
+    doThrow(new NotFoundException("No historic process instance found with id: 'NON_EXISTING_ID'"))
+    .when(historyServiceMock).deleteHistoricVariableInstancesByProcessInstanceId("NON_EXISTING_ID");
+    
+    given()
+      .pathParam("id", "NON_EXISTING_ID")
+    .expect()
+      .statusCode(Status.NOT_FOUND.getStatusCode())
+      .body(containsString("No historic process instance found with id: 'NON_EXISTING_ID'"))
+    .when()
+      .delete(HISTORIC_SINGLE_PROCESS_INSTANCE_VARIABLES_URL);
+  }
+
+  @Test
+  public void shouldSetRemovalTime_ByIds() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("historicProcessInstanceIds", Collections.singletonList(EXAMPLE_PROCESS_INSTANCE_ID));
+    payload.put("calculatedRemovalTime", true);
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(payload)
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builder =
+      historyServiceMock.setRemovalTimeToHistoricProcessInstances();
+
+    verify(builder).calculatedRemovalTime();
+    verify(builder).byIds(EXAMPLE_PROCESS_INSTANCE_ID);
+    verify(builder).byQuery(null);
+    verify(builder).executeAsync();
+    verifyNoMoreInteractions(builder);
+  }
+
+  @Test
+  public void shouldSetRemovalTime_ByQuery() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    HistoricProcessInstanceQuery query = mock(HistoricProcessInstanceQueryImpl.class, RETURNS_DEEP_STUBS);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(query);
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("calculatedRemovalTime", true);
+    payload.put("historicProcessInstanceQuery", Collections.singletonMap("processDefinitionId", EXAMPLE_PROCESS_DEFINITION_ID));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(payload)
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builder =
+      historyServiceMock.setRemovalTimeToHistoricProcessInstances();
+
+    verify(query).processDefinitionId(EXAMPLE_PROCESS_DEFINITION_ID);
+
+    verify(builder).calculatedRemovalTime();
+    verify(builder).byIds(null);
+    verify(builder).byQuery(query);
+    verify(builder).executeAsync();
+    verifyNoMoreInteractions(builder);
+  }
+
+  @Test
+  public void shouldSetRemovalTime_Absolute() {
+    Date removalTime = new Date();
+
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("historicProcessInstanceIds", Collections.singletonList(EXAMPLE_PROCESS_INSTANCE_ID));
+    payload.put("absoluteRemovalTime", removalTime);
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(payload)
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builder =
+      historyServiceMock.setRemovalTimeToHistoricProcessInstances();
+
+    verify(builder).absoluteRemovalTime(removalTime);
+    verify(builder).byIds(EXAMPLE_PROCESS_INSTANCE_ID);
+    verify(builder).byQuery(null);
+    verify(builder).executeAsync();
+    verifyNoMoreInteractions(builder);
+  }
+
+  @Test
+  public void shouldNotSetRemovalTime_Absolute() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("historicProcessInstanceIds", Collections.singletonList(EXAMPLE_PROCESS_INSTANCE_ID));
+    payload.put("absoluteRemovalTime", null);
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(payload)
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    SetRemovalTimeToHistoricProcessInstancesBuilder builder =
+      historyServiceMock.setRemovalTimeToHistoricProcessInstances();
+
+    verify(builder).byIds(EXAMPLE_PROCESS_INSTANCE_ID);
+    verify(builder).byQuery(null);
+    verify(builder).executeAsync();
+    verifyNoMoreInteractions(builder);
+  }
+
+  @Test
+  public void shouldClearRemovalTime() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances())
+      .thenReturn(builderMock);
+
+    Map<String, Object> payload = new HashMap<>();
+    payload.put("historicProcessInstanceIds", Collections.singletonList(EXAMPLE_PROCESS_INSTANCE_ID));
+    payload.put("clearedRemovalTime", true);
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(payload)
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builder =
+      historyServiceMock.setRemovalTimeToHistoricProcessInstances();
+
+    verify(builder).clearedRemovalTime();
+    verify(builder).byIds(EXAMPLE_PROCESS_INSTANCE_ID);
+    verify(builder).byQuery(null);
+    verify(builder).executeAsync();
+    verifyNoMoreInteractions(builder);
+  }
+
+  @Test
+  public void shouldSetRemovalTime_Response() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(builderMock.executeAsync()).thenReturn(batchEntity);
+
+    Response response = given()
+      .contentType(ContentType.JSON)
+      .body(Collections.emptyMap())
+    .then()
+      .expect().statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+
+    verifyBatchJson(response.asString());
+  }
+
+  @Test
+  public void shouldSetRemovalTime_ThrowBadUserException() {
+    SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder builderMock =
+      mock(SetRemovalTimeSelectModeForHistoricProcessInstancesBuilder.class, RETURNS_DEEP_STUBS);
+
+    when(historyServiceMock.setRemovalTimeToHistoricProcessInstances()).thenReturn(builderMock);
+
+    doThrow(BadUserRequestException.class).when(builderMock).executeAsync();
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(Collections.emptyMap())
+    .then()
+      .expect().statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when()
+      .post(SET_REMOVAL_TIME_HISTORIC_PROCESS_INSTANCES_ASYNC_URL);
+  }
+
+  @Test
+  public void testOrQuery() {
+    // given
+    HistoricProcessInstanceQueryImpl mockedQuery = mock(HistoricProcessInstanceQueryImpl.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedQuery);
+
+    String payload = "{ \"orQueries\": [{" +
+        "\"processDefinitionKey\": \"aKey\", " +
+        "\"processInstanceBusinessKey\": \"aBusinessKey\"}] }";
+
+    // when
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .header(ACCEPT_JSON_HEADER)
+      .body(payload)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_URL);
+
+    ArgumentCaptor<HistoricProcessInstanceQueryImpl> argument =
+        ArgumentCaptor.forClass(HistoricProcessInstanceQueryImpl.class);
+
+    verify(mockedQuery).addOrQuery(argument.capture());
+
+    // then
+    assertThat(argument.getValue().getProcessDefinitionKey()).isEqualTo("aKey");
+    assertThat(argument.getValue().getBusinessKey()).isEqualTo("aBusinessKey");
   }
 
   protected void verifyBatchJson(String batchJson) {

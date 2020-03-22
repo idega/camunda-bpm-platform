@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,11 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.authorization.Authorization.ANY;
 import static org.camunda.bpm.engine.authorization.Permissions.DELETE;
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
@@ -46,7 +49,7 @@ import static org.camunda.bpm.engine.rest.helper.MockProvider.mockFilter;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.mockVariableInstance;
 import static org.camunda.bpm.engine.rest.helper.TaskQueryMatcher.hasName;
 import static org.camunda.bpm.engine.variable.Variables.stringValue;
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -92,6 +95,7 @@ import org.camunda.bpm.engine.filter.FilterQuery;
 import org.camunda.bpm.engine.impl.AuthorizationServiceImpl;
 import org.camunda.bpm.engine.impl.IdentityServiceImpl;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
+import org.camunda.bpm.engine.impl.VariableInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
@@ -102,7 +106,6 @@ import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.MockTaskBuilder;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
 import org.camunda.bpm.engine.runtime.VariableInstance;
-import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.variable.type.ValueType;
@@ -111,7 +114,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.response.Response;
+import io.restassured.response.Response;
 import org.mockito.ArgumentCaptor;
 
 /**
@@ -149,7 +152,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
 
   protected AuthorizationService authorizationServiceMock;
   protected IdentityService identityServiceMock;
-  protected VariableInstanceQuery variableInstanceQueryMock;
+  protected VariableInstanceQueryImpl variableInstanceQueryMock;
   protected ProcessEngineConfiguration processEngineConfigurationMock;
 
   @Before
@@ -219,7 +222,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     TaskService taskService = processEngine.getTaskService();
     when(taskService.createTaskQuery()).thenReturn(new TaskQueryImpl());
 
-    variableInstanceQueryMock = mock(VariableInstanceQuery.class);
+    variableInstanceQueryMock = mock(VariableInstanceQueryImpl.class);
     when(processEngine.getRuntimeService().createVariableInstanceQuery())
       .thenReturn(variableInstanceQueryMock);
     when(variableInstanceQueryMock.variableScopeIdIn((String) anyVararg()))
@@ -1523,6 +1526,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock, never()).variableScopeIdIn((String) anyVararg());
     verify(variableInstanceQueryMock, never()).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock, never()).list();
+
   }
 
   @Test
@@ -1564,7 +1568,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
       createTaskVariableInstanceMock("foo", stringValue("task"), TASK_B_ID),
       createTaskVariableInstanceMock("task", stringValue("bar"), TASK_B_ID)
     );
-    when(variableInstanceQueryMock.list()).thenReturn(variableInstances);
+    when(variableInstanceQueryMock.unlimitedList()).thenReturn(variableInstances);
 
     given()
       .pathParam("id", EXAMPLE_FILTER_ID)
@@ -1581,7 +1585,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock).variableScopeIdIn(TASK_A_ID, EXECUTION_A_ID, PROCESS_INSTANCE_A_ID);
     verify(variableInstanceQueryMock, times(1)).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock).variableNameIn("foo", "bar");
-    verify(variableInstanceQueryMock, times(1)).list();
+    verify(variableInstanceQueryMock, times(1)).unlimitedList();
   }
 
   @Test
@@ -1606,7 +1610,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
       createCaseExecutionVariableInstanceMock("foo", stringValue("caseExecution"), CASE_EXECUTION_A_ID),
       createCaseExecutionVariableInstanceMock("caseExecution", stringValue("bar"), CASE_EXECUTION_A_ID)
     );
-    when(variableInstanceQueryMock.list()).thenReturn(variableInstances);
+    when(variableInstanceQueryMock.unlimitedList()).thenReturn(variableInstances);
 
     Response response = given()
       .pathParam("id", EXAMPLE_FILTER_ID)
@@ -1623,7 +1627,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock).variableScopeIdIn(TASK_A_ID, EXECUTION_A_ID, PROCESS_INSTANCE_A_ID, CASE_EXECUTION_A_ID, CASE_INSTANCE_A_ID);
     verify(variableInstanceQueryMock, times(1)).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock).variableNameIn("foo", "bar");
-    verify(variableInstanceQueryMock, times(1)).list();
+    verify(variableInstanceQueryMock, times(1)).unlimitedList();
     verify(variableInstanceQueryMock, times(1)).disableBinaryFetching();
     verify(variableInstanceQueryMock, times(1)).disableCustomObjectDeserialization();
 
@@ -1676,7 +1680,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
       createCaseExecutionVariableInstanceMock("foo", stringValue(CASE_EXECUTION_A_ID), CASE_EXECUTION_A_ID),
       createCaseExecutionVariableInstanceMock(CASE_EXECUTION_A_ID, stringValue("bar"), CASE_EXECUTION_A_ID)
     );
-    when(variableInstanceQueryMock.list()).thenReturn(variableInstances);
+    when(variableInstanceQueryMock.unlimitedList()).thenReturn(variableInstances);
 
     Response response = given()
       .pathParam("id", EXAMPLE_FILTER_ID)
@@ -1693,7 +1697,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock).variableScopeIdIn(TASK_A_ID, EXECUTION_A_ID, PROCESS_INSTANCE_A_ID, TASK_B_ID, EXECUTION_B_ID, TASK_C_ID, CASE_EXECUTION_A_ID, CASE_INSTANCE_A_ID);
     verify(variableInstanceQueryMock, times(1)).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock).variableNameIn("foo", "bar");
-    verify(variableInstanceQueryMock, times(1)).list();
+    verify(variableInstanceQueryMock, times(1)).unlimitedList();
 
     String content = response.asString();
     List<Map<String, Object>> taskList = from(content).getList("_embedded.task");

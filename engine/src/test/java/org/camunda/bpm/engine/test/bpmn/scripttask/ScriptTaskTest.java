@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +16,7 @@
  */
 package org.camunda.bpm.engine.test.bpmn.scripttask;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertThat;
 
@@ -52,10 +57,9 @@ public class ScriptTaskTest extends PluggableProcessEngineTestCase {
 
   private List<String> deploymentIds = new ArrayList<String>();
 
+  @Override
   protected void tearDown() throws Exception {
-    for (String deploymentId : deploymentIds) {
-      repositoryService.deleteDeployment(deploymentId, true);
-    }
+    deploymentIds.forEach(deploymentId -> repositoryService.deleteDeployment(deploymentId, true));
   }
 
   public void testJavascriptProcessVarVisibility() {
@@ -254,14 +258,7 @@ public class ScriptTaskTest extends PluggableProcessEngineTestCase {
     // THEN
     // the variable is defined
     Object variable = runtimeService.getVariable(pi.getId(), "foo");
-
-    if (variable instanceof Double) {
-      // jdk 6/7 - rhino returns Double 3.0 for 1+2
-      assertEquals(3.0, variable);
-    } else if (variable instanceof Integer) {
-      // jdk8 - nashorn returns Integer 3 for 1+2
-      assertEquals(3, variable);
-    }
+    assertThat(variable).isIn(3, 3.0);
 
   }
 
@@ -288,7 +285,7 @@ public class ScriptTaskTest extends PluggableProcessEngineTestCase {
     // THEN
     // the variable is defined
     Object variable = runtimeService.getVariable(pi.getId(), "foo");
-    assertEquals(3, variable);
+    assertThat(variable).isIn(3, 3.0);
 
   }
 

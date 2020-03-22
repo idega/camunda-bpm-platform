@@ -1,12 +1,27 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_JOB_ACTIVITY_ID;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_JOB_DEFINITION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_JOB_DEFINITION_ID;
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.inOrder;
@@ -16,6 +31,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -35,8 +51,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  *
@@ -133,6 +149,16 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
 
     inOrder = Mockito.inOrder(mockedQuery);
     executeAndVerifySorting("incidentId", "desc", Status.OK);
+    inOrder.verify(mockedQuery).orderByIncidentId();
+    inOrder.verify(mockedQuery).desc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("incidentMessage", "asc", Status.OK);
+    inOrder.verify(mockedQuery).orderByIncidentId();
+    inOrder.verify(mockedQuery).asc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("incidentMessage", "desc", Status.OK);
     inOrder.verify(mockedQuery).orderByIncidentId();
     inOrder.verify(mockedQuery).desc();
 
@@ -341,6 +367,7 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     Date returnedEndTime = DateTimeUtil.parseDate(from(content).getString("[0].endTime"));
     String returnedIncidentType = from(content).getString("[0].incidentType");
     String returnedActivityId = from(content).getString("[0].activityId");
+    String returnedFailedActivityId = from(content).getString("[0].failedActivityId");
     String returnedCauseIncidentId = from(content).getString("[0].causeIncidentId");
     String returnedRootCauseIncidentId = from(content).getString("[0].rootCauseIncidentId");
     String returnedConfiguration = from(content).getString("[0].configuration");
@@ -350,6 +377,8 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     Boolean returnedIncidentResolved = from(content).getBoolean("[0].resolved");
     String returnedTenantId = from(content).getString("[0].tenantId");
     String returnedJobDefinitionId = from(content).getString("[0].jobDefinitionId");
+    Date returnedRemovalTime = DateTimeUtil.parseDate(from(content).getString("[0].removalTime"));
+    String returnedRootProcessInstanceId = from(content).getString("[0].rootProcessInstanceId");
 
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_ID, returnedId);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_PROC_INST_ID, returnedProcessInstanceId);
@@ -360,6 +389,7 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_PROC_DEF_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_TYPE, returnedIncidentType);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_ACTIVITY_ID, returnedActivityId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_FAILED_ACTIVITY_ID, returnedFailedActivityId);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_CAUSE_INCIDENT_ID, returnedCauseIncidentId);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_ROOT_CAUSE_INCIDENT_ID, returnedRootCauseIncidentId);
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_CONFIGURATION, returnedConfiguration);
@@ -369,6 +399,9 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_STATE_RESOLVED, returnedIncidentResolved);
     Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
     Assert.assertEquals(EXAMPLE_JOB_DEFINITION_ID, returnedJobDefinitionId);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HIST_INCIDENT_REMOVAL_TIME), returnedRemovalTime);
+    Assert.assertEquals(MockProvider.EXAMPLE_HIST_INCIDENT_ROOT_PROC_INST_ID, returnedRootProcessInstanceId);
+
   }
 
   @Test
@@ -420,6 +453,22 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
   }
 
   @Test
+  public void testQueryByProcessDefinitionKey() {
+    String key1 = "foo";
+    String key2 = "bar";
+
+    given()
+      .queryParam("processDefinitionKeyIn", key1 + "," + key2)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORY_INCIDENT_QUERY_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+
+    inOrder.verify(mockedQuery).processDefinitionKeyIn("foo", "bar");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
   public void testQueryByProcessInstanceId() {
     String processInstanceId = MockProvider.EXAMPLE_HIST_INCIDENT_PROC_INST_ID;
 
@@ -448,11 +497,23 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     String activityId = MockProvider.EXAMPLE_HIST_INCIDENT_ACTIVITY_ID;
 
     given()
-      .queryParam("activityId", activityId)
+    .queryParam("activityId", activityId)
+    .then().expect().statusCode(Status.OK.getStatusCode())
+    .when().get(HISTORY_INCIDENT_QUERY_URL);
+
+    verify(mockedQuery).activityId(activityId);
+  }
+
+  @Test
+  public void testQueryByFailedActivityId() {
+    String activityId = MockProvider.EXAMPLE_HIST_INCIDENT_FAILED_ACTIVITY_ID;
+
+    given()
+      .queryParam("failedActivityId", activityId)
       .then().expect().statusCode(Status.OK.getStatusCode())
       .when().get(HISTORY_INCIDENT_QUERY_URL);
 
-    verify(mockedQuery).activityId(activityId);
+    verify(mockedQuery).failedActivityId(activityId);
   }
 
   @Test
@@ -484,11 +545,23 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
     String configuration = MockProvider.EXAMPLE_HIST_INCIDENT_CONFIGURATION;
 
     given()
-      .queryParam("configuration", configuration)
+    .queryParam("configuration", configuration)
+    .then().expect().statusCode(Status.OK.getStatusCode())
+    .when().get(HISTORY_INCIDENT_QUERY_URL);
+
+    verify(mockedQuery).configuration(configuration);
+  }
+
+  @Test
+  public void testQueryByHistoryConfiguration() {
+    String historyConfiguration = MockProvider.EXAMPLE_HIST_INCIDENT_HISTORY_CONFIGURATION;
+
+    given()
+      .queryParam("historyConfiguration", historyConfiguration)
       .then().expect().statusCode(Status.OK.getStatusCode())
       .when().get(HISTORY_INCIDENT_QUERY_URL);
 
-    verify(mockedQuery).configuration(configuration);
+    verify(mockedQuery).historyConfiguration(historyConfiguration);
   }
 
   @Test
@@ -549,10 +622,35 @@ public class HistoricIncidentRestServiceQueryTest extends AbstractRestServiceTes
   }
 
   @Test
+  public void testQueryWithoutTenantIdQueryParameter() {
+    // given
+    mockedQuery = setUpMockHistoricIncidentQuery(Collections.singletonList(MockProvider.createMockHistoricIncident(null)));
+
+    // when
+    Response response = given()
+        .queryParam("withoutTenantId", true)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when()
+        .get(HISTORY_INCIDENT_QUERY_URL);
+
+    // then
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(1);
+
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId).isEqualTo(null);
+  }
+
+  @Test
   public void testQueryByJobDefinitionIds() {
     String jobDefinitionIds = EXAMPLE_JOB_DEFINITION_ID + "," + NON_EXISTING_JOB_DEFINITION_ID;
 
-    Response response = given()
+    given()
         .queryParam("jobDefinitionIdIn", jobDefinitionIds)
       .then().expect()
         .statusCode(Status.OK.getStatusCode())

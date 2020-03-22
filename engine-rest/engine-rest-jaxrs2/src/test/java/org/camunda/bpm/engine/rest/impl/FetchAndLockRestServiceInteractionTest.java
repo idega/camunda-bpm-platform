@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +16,7 @@
  */
 package org.camunda.bpm.engine.rest.impl;
 
-import com.jayway.restassured.http.ContentType;
+import io.restassured.http.ContentType;
 import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -24,6 +28,7 @@ import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.TenantQuery;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
+import org.camunda.bpm.engine.rest.dto.externaltask.FetchExternalTasksDto.FetchExternalTaskTopicDto;
 import org.camunda.bpm.engine.rest.dto.externaltask.FetchExternalTasksExtendedDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
@@ -38,12 +43,13 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import javax.servlet.ServletContextEvent;
 import javax.ws.rs.core.Response.Status;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -55,6 +61,7 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -107,6 +114,9 @@ public class FetchAndLockRestServiceInteractionTest extends AbstractRestServiceT
     when(fetchTopicBuilder.enableCustomObjectDeserialization())
       .thenReturn(fetchTopicBuilder);
 
+    when(fetchTopicBuilder.processDefinitionVersionTag(anyString()))
+    .thenReturn(fetchTopicBuilder);
+
     // for authentication
     when(processEngine.getIdentityService())
       .thenReturn(identityServiceMock);
@@ -117,7 +127,7 @@ public class FetchAndLockRestServiceInteractionTest extends AbstractRestServiceT
     List<Tenant> tenantMocks = Collections.singletonList(MockProvider.createMockTenant());
     tenantIds = setupTenantQueryMock(tenantMocks);
 
-    new FetchAndLockContextListener().contextInitialized(null);
+    new FetchAndLockContextListener().contextInitialized(mock(ServletContextEvent.class, RETURNS_DEEP_STUBS));
   }
 
   @Test
@@ -213,7 +223,7 @@ public class FetchAndLockRestServiceInteractionTest extends AbstractRestServiceT
 
   @Test
   public void shouldThrowInvalidRequestExceptionOnMaxTimeoutExceeded() {
-    FetchExternalTasksExtendedDto fetchExternalTasksDto = createDto(FetchAndLockHandlerImpl.MAX_TIMEOUT + 1);
+    FetchExternalTasksExtendedDto fetchExternalTasksDto = createDto(FetchAndLockHandlerImpl.MAX_REQUEST_TIMEOUT + 1);
 
     given()
       .contentType(ContentType.JSON)
@@ -314,7 +324,51 @@ public class FetchAndLockRestServiceInteractionTest extends AbstractRestServiceT
     assertThat(argumentCaptor.getValue().getGroupIds(), is(groupIds));
     assertThat(argumentCaptor.getValue().getTenantIds(), is(tenantIds));
   }
-  
+
+  @Test
+  public void shouldReturnInternalServerErrorResponseJsonWithTypeAndMessage() {
+    FetchExternalTasksExtendedDto fetchExternalTasksDto = createDto(500L);
+
+    when(fetchTopicBuilder.execute())
+      .thenThrow(new IllegalArgumentException("anExceptionMessage"));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(fetchExternalTasksDto)
+      .pathParam("name", "default")
+    .then()
+      .expect()
+        .body("type", equalTo(IllegalArgumentException.class.getSimpleName()))
+        .body("message", equalTo("anExceptionMessage"))
+        .statusCode(Status.INTERNAL_SERVER_ERROR.getStatusCode())
+    .when()
+      .post(FETCH_EXTERNAL_TASK_URL_NAMED_ENGINE);
+
+    verify(fetchTopicBuilder, times(1)).execute();
+  }
+
+  @Test
+  public void shouldFetchAndLockByProcessDefinitionVersionTag() {
+    when(fetchTopicBuilder.execute())
+    .thenReturn(new ArrayList<LockedExternalTask>(Collections.singleton(lockedExternalTaskMock)));
+
+    FetchExternalTasksExtendedDto fetchExternalTasksDto = createDto(500L);
+    for (FetchExternalTaskTopicDto topic : fetchExternalTasksDto.getTopics()) {
+      topic.setProcessDefinitionVersionTag("version");
+    }
+
+    given()
+    .contentType(ContentType.JSON)
+    .body(fetchExternalTasksDto)
+  .then()
+    .expect()
+    .statusCode(Status.OK.getStatusCode())
+  .when()
+    .post(FETCH_EXTERNAL_TASK_URL);
+
+    verify(fetchTopicBuilder).processDefinitionVersionTag("version");
+  }
+
   // helper /////////////////////////
 
   private FetchExternalTasksExtendedDto createDto(Long responseTimeout) {

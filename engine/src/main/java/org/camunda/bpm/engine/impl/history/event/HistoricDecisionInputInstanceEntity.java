@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,14 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.history.event;
+
+import java.util.Date;
 
 import org.camunda.bpm.engine.history.HistoricDecisionInputInstance;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.util.ByteArrayField;
 import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueField;
 import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 /**
@@ -39,8 +45,20 @@ public class HistoricDecisionInputInstanceEntity extends HistoryEvent implements
 
   protected String tenantId;
 
-  protected ByteArrayField byteArrayField = new ByteArrayField(this);
+  protected ByteArrayField byteArrayField;
   protected TypedValueField typedValueField = new TypedValueField(this, false);
+
+  protected Date createTime;
+
+  public HistoricDecisionInputInstanceEntity() {
+    byteArrayField = new ByteArrayField(this, ResourceTypes.HISTORY);
+  }
+
+  public HistoricDecisionInputInstanceEntity(String rootProcessInstanceId, Date removalTime) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+    this.removalTime = removalTime;
+    byteArrayField = new ByteArrayField(this, ResourceTypes.HISTORY, getRootProcessInstanceId(), getRemovalTime());
+  }
 
   @Override
   public String getDecisionInstanceId() {
@@ -85,11 +103,11 @@ public class HistoricDecisionInputInstanceEntity extends HistoryEvent implements
 
   @Override
   public TypedValue getTypedValue() {
-    return typedValueField.getTypedValue();
+    return typedValueField.getTypedValue(false);
   }
 
   public TypedValue getTypedValue(boolean deserializeValue) {
-    return typedValueField.getTypedValue(deserializeValue);
+    return typedValueField.getTypedValue(deserializeValue, false);
   }
 
   @Override
@@ -179,6 +197,22 @@ public class HistoricDecisionInputInstanceEntity extends HistoryEvent implements
 
   public void setTenantId(String tenantId) {
     this.tenantId = tenantId;
+  }
+
+  public Date getCreateTime() {
+    return createTime;
+  }
+
+  public void setCreateTime(Date createTime) {
+    this.createTime = createTime;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
   }
 
   public void delete() {

@@ -1,6 +1,9 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -11,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.spin.plugin.variables;
 
 import static org.camunda.bpm.engine.variable.Variables.objectValue;
@@ -19,18 +21,27 @@ import static org.camunda.bpm.engine.variable.Variables.serializedObjectValue;
 import static org.camunda.spin.plugin.variables.TypedValueAssert.assertObjectValueDeserializedNull;
 import static org.camunda.spin.plugin.variables.TypedValueAssert.assertObjectValueSerializedNull;
 import static org.camunda.spin.plugin.variables.TypedValueAssert.assertUntypedNullValue;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.ProcessEngineRule;
+import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
@@ -41,17 +52,35 @@ import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.spin.DataFormats;
 import org.json.JSONException;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.skyscreamer.jsonassert.JSONAssert;
 
-public class JsonSerializationTest extends PluggableProcessEngineTestCase {
+public class JsonSerializationTest {
 
   protected static final String ONE_TASK_PROCESS = "org/camunda/spin/plugin/oneTaskProcess.bpmn20.xml";
   protected static final String SERVICE_TASK_PROCESS = "org/camunda/spin/plugin/serviceTaskProcess.bpmn20.xml";
 
   protected static final String JSON_FORMAT_NAME = DataFormats.JSON_DATAFORMAT_NAME;
 
+  @Rule
+  public ProcessEngineRule engineRule = new ProcessEngineRule(true);
+
+  @Rule
+  public ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
+
+  protected RuntimeService runtimeService;
+
   protected String originalSerializationFormat;
 
+  @Before
+  public void setUp() {
+    runtimeService = engineRule.getRuntimeService();
+  }
+
+
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSerializationAsJson() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -79,11 +108,12 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     JSONAssert.assertEquals(bean.toExpectedJsonString(), new String(typedValue.getValueSerialized()), true);
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testListSerializationAsJson() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
 
-    List<JsonSerializable> beans = new ArrayList<JsonSerializable>();
+    List<JsonSerializable> beans = new ArrayList<>();
     for (int i = 0; i < 20; i++) {
       beans.add(new JsonSerializable("a String" + i, 42 + i, true));
     }
@@ -105,6 +135,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
 
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testFailingSerialization() {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -119,6 +150,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     }
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testFailingDeserialization() {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -154,7 +186,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
       fail("exception expected");
     }
     catch(IllegalStateException e) {
-      assertTextPresent("Object is not deserialized", e.getMessage());
+      testRule.assertTextPresent("Object is not deserialized", e.getMessage());
     }
 
     try {
@@ -162,7 +194,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
       fail("exception expected");
     }
     catch(IllegalStateException e) {
-      assertTextPresent("Object is not deserialized", e.getMessage());
+      testRule.assertTextPresent("Object is not deserialized", e.getMessage());
     }
 
     try {
@@ -170,11 +202,12 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
       fail("exception expected");
     }
     catch(IllegalStateException e) {
-      assertTextPresent("Object is not deserialized", e.getMessage());
+      testRule.assertTextPresent("Object is not deserialized", e.getMessage());
     }
 
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testFailForNonExistingSerializationFormat() {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -185,16 +218,17 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
       runtimeService.setVariable(instance.getId(), "simpleBean", objectValue(jsonSerializable).serializationDataFormat("non existing data format"));
       fail("Exception expected");
     } catch (ProcessEngineException e) {
-      assertTextPresent("Cannot find serializer for value", e.getMessage());
+      testRule.assertTextPresent("Cannot find serializer for value", e.getMessage());
       // happy path
     }
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testVariableValueCaching() {
     final ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
 
-    processEngineConfiguration.getCommandExecutorTxRequired().execute(new Command<Void>() {
+    engineRule.getProcessEngineConfiguration().getCommandExecutorTxRequired().execute(new Command<Void>() {
 
       @Override
       public Void execute(CommandContext commandContext) {
@@ -215,6 +249,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertSame(returnedBean, theSameReturnedBean);
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testGetSerializedVariableValue() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -228,6 +263,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     JSONAssert.assertEquals(bean.toExpectedJsonString(), serializedValue, true);
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetSerializedVariableValue() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -251,6 +287,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertEquals(bean.getClass().getCanonicalName(), typedValue.getObjectTypeName());
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetSerializedVariableValueNoTypeName() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -266,10 +303,11 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
       fail("Exception expected.");
     }
     catch(Exception e) {
-      assertTextPresent("no 'objectTypeName' provided for non-null value", e.getMessage());
+      testRule.assertTextPresent("no 'objectTypeName' provided for non-null value", e.getMessage());
     }
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetSerializedVariableValueMismatchingTypeName() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -305,7 +343,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     }
   }
 
-
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetSerializedVariableValueNull() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -329,6 +367,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
 
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetSerializedVariableValueNullNoTypeName() throws JSONException {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -351,22 +390,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertNull(typedValue.getObjectTypeName());
   }
 
-  protected String toExpectedJsonArray(List<JsonSerializable> beans) {
-    StringBuilder jsonBuilder = new StringBuilder();
-
-    jsonBuilder.append("[");
-    for (int i = 0; i < beans.size(); i++) {
-      jsonBuilder.append(beans.get(i).toExpectedJsonString());
-
-      if (i != beans.size() - 1)  {
-        jsonBuilder.append(", ");
-      }
-    }
-    jsonBuilder.append("]");
-
-    return jsonBuilder.toString();
-  }
-
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetJavaOjectNullDeserialized() throws Exception {
 
@@ -387,6 +411,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
 
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetJavaOjectNullSerialized() throws Exception {
 
@@ -409,6 +434,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertObjectValueSerializedNull(serializedTypedValue);
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetJavaOjectNullSerializedObjectTypeName() throws Exception {
 
@@ -444,6 +470,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertEquals(typeName, serializedTypedValue.getObjectTypeName());
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetUntypedNullForExistingVariable() throws Exception {
 
@@ -469,6 +496,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
 
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testSetTypedNullForExistingVariable() throws Exception {
 
@@ -493,6 +521,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertObjectValueDeserializedNull(typedValue);
   }
 
+  @Test
   @Deployment(resources = ONE_TASK_PROCESS)
   public void testRemoveVariable() throws JSONException {
     // given a serialized json variable
@@ -515,10 +544,10 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertNull(runtimeService.getVariableTyped(instance.getId(), "simpleBean", false));
   }
 
-
   /**
    * CAM-3222
    */
+  @Test
   @Deployment(resources = SERVICE_TASK_PROCESS)
   public void testImplicitlyUpdateEmptyList() {
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("serviceTaskProcess",
@@ -539,6 +568,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     assertEquals(UpdateValueDelegate.STRING_PROPERTY, list.get(0).getStringProperty());
   }
 
+  @Test
   public void testTransientJsonValue() {
     // given
     BpmnModelInstance modelInstance = Bpmn.createExecutableProcess("foo")
@@ -554,7 +584,7 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
           .endEvent()
         .done();
 
-    deployment(modelInstance);
+    testRule.deploy(modelInstance);
 
     JsonSerializable bean = new JsonSerializable("bar", 42, true);
     ObjectValue jsonValue = serializedObjectValue(bean.toExpectedJsonString(), true)
@@ -570,9 +600,25 @@ public class JsonSerializationTest extends PluggableProcessEngineTestCase {
     List<VariableInstance> variableInstances = runtimeService.createVariableInstanceQuery().list();
     assertEquals(0, variableInstances.size());
 
-    Task task = taskService.createTaskQuery().singleResult();
+    Task task = engineRule.getTaskService().createTaskQuery().singleResult();
     assertNotNull(task);
     assertEquals("userTask1", task.getTaskDefinitionKey());
+  }
+
+  protected String toExpectedJsonArray(List<JsonSerializable> beans) {
+    StringBuilder jsonBuilder = new StringBuilder();
+
+    jsonBuilder.append("[");
+    for (int i = 0; i < beans.size(); i++) {
+      jsonBuilder.append(beans.get(i).toExpectedJsonString());
+
+      if (i != beans.size() - 1)  {
+        jsonBuilder.append(", ");
+      }
+    }
+    jsonBuilder.append("]");
+
+    return jsonBuilder.toString();
   }
 
 }

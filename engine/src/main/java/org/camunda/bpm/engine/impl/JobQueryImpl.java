@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
@@ -53,10 +56,13 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
   protected Date duedateLowerThan;
   protected Date duedateHigherThanOrEqual;
   protected Date duedateLowerThanOrEqual;
+  protected Date createdBefore;
+  protected Date createdAfter;
   protected Long priorityHigherThanOrEqual;
   protected Long priorityLowerThanOrEqual;
   protected boolean withException;
   protected String exceptionMessage;
+  protected String failedActivityId;
   protected boolean noRetriesLeft;
   protected SuspensionState suspensionState;
 
@@ -171,8 +177,21 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
     return this;
   }
 
+  @Override
+  public JobQuery createdBefore(Date date) {
+    ensureNotNull("Provided date", date);
+    this.createdBefore = date;
+    return this;
+  }
 
-  public JobQuery priorityHigherThanOrEquals(long priority) {
+  @Override
+  public JobQuery createdAfter(Date date) {
+    ensureNotNull("Provided date", date);
+    this.createdAfter = date;
+    return this;
+  }
+
+    public JobQuery priorityHigherThanOrEquals(long priority) {
     this.priorityHigherThanOrEqual = priority;
     return this;
   }
@@ -190,6 +209,12 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
   public JobQuery exceptionMessage(String exceptionMessage) {
     ensureNotNull("Provided exception message", exceptionMessage);
     this.exceptionMessage = exceptionMessage;
+    return this;
+  }
+
+  public JobQuery failedActivityId(String activityId){
+    ensureNotNull("Provided activity id", activityId);
+    this.failedActivityId = activityId;
     return this;
   }
 
@@ -212,7 +237,8 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
   protected boolean hasExcludingConditions() {
     return super.hasExcludingConditions()
       || CompareUtil.areNotInAscendingOrder(priorityHigherThanOrEqual, priorityLowerThanOrEqual)
-      || hasExcludingDueDateParameters();
+      || hasExcludingDueDateParameters()
+      || CompareUtil.areNotInAscendingOrder(createdBefore, createdAfter);
   }
 
   private boolean hasExcludingDueDateParameters() {

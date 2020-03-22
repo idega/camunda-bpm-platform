@@ -1,11 +1,12 @@
 /*
- * Copyright 2016 camunda services GmbH.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +16,6 @@
  */
 package org.camunda.bpm.engine.rest.dto.runtime;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.camunda.bpm.engine.rest.dto.VariableValueDto;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -49,12 +49,8 @@ public class ProcessInstanceWithVariablesDto extends ProcessInstanceDto {
   public static ProcessInstanceDto fromProcessInstance(ProcessInstanceWithVariables instance) {
     ProcessInstanceWithVariablesDto result = new ProcessInstanceWithVariablesDto(instance);
     VariableMap variables = instance.getVariables();
-    Map<String, VariableValueDto> values = new HashMap<String, VariableValueDto>();
-    for (String variableName : variables.keySet()) {
-      VariableValueDto valueDto = VariableValueDto.fromTypedValue(variables.getValueTyped(variableName), true);
-      values.put(variableName, valueDto);
-    }
-    result.variables = values;
+
+    result.variables = VariableValueDto.fromMap(variables, true);
     return result;
   }
 }

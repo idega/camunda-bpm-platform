@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +16,8 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.eq;
@@ -24,6 +28,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.history.HistoricCaseActivityStatistics;
 import org.camunda.bpm.engine.history.HistoricCaseActivityStatisticsQuery;
+import org.camunda.bpm.engine.impl.HistoricCaseActivityStatisticsQueryImpl;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
@@ -34,7 +39,7 @@ import org.junit.Test;
 
 import javax.ws.rs.core.Response.Status;
 
-import com.jayway.restassured.response.Response;
+import io.restassured.response.Response;
 
 /**
  * @author Roman Smirnov
@@ -54,9 +59,9 @@ public class HistoricCaseActivityStatisticsRestServiceQueryTest extends Abstract
   public static void setUpRuntimeData() {
     List<HistoricCaseActivityStatistics> mocks = MockProvider.createMockHistoricCaseActivityStatistics();
 
-    historicCaseActivityStatisticsQuery = mock(HistoricCaseActivityStatisticsQuery.class);
+    historicCaseActivityStatisticsQuery = mock(HistoricCaseActivityStatisticsQueryImpl.class);
     when(processEngine.getHistoryService().createHistoricCaseActivityStatisticsQuery(eq(MockProvider.EXAMPLE_CASE_DEFINITION_ID))).thenReturn(historicCaseActivityStatisticsQuery);
-    when(historicCaseActivityStatisticsQuery.list()).thenReturn(mocks);
+    when(historicCaseActivityStatisticsQuery.unlimitedList()).thenReturn(mocks);
   }
 
   @Test

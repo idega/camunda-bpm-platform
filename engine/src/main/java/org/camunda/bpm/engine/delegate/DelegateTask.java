@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -177,6 +181,7 @@ public interface DelegateTask extends VariableScope, BpmnModelExecutionContext, 
    * Provides access to the current {@link UserTask} Element from the Bpmn Model.
    * @return the current {@link UserTask} Element from the Bpmn Model.
    */
+  @Override
   public UserTask getBpmnModelElementInstance();
 
   /**
@@ -184,6 +189,12 @@ public interface DelegateTask extends VariableScope, BpmnModelExecutionContext, 
    * if the task belongs to no single tenant.
    */
   String getTenantId();
+
+  /** Follow-up date of the task. */
+  Date getFollowUpDate();
+
+  /** Change follow-up date of the task. */
+  void setFollowUpDate(Date followUpDate);
 
   /**
    * set status to complete.

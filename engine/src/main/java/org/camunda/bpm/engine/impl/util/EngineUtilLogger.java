@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +20,11 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.List;
+
 import org.camunda.bpm.engine.ClassLoadingException;
+import org.camunda.bpm.engine.ParseException;
+import org.camunda.bpm.engine.Problem;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -54,11 +62,14 @@ public class EngineUtilLogger extends ProcessEngineLogger {
         "Warnings during parsing: {}", formattedMessage);
   }
 
-  public ProcessEngineException exceptionDuringParsing(String string) {
-    return new ProcessEngineException(exceptionMessage(
+  public ProcessEngineException exceptionDuringParsing(String string, String resourceName, List<Problem> errors, List<Problem> warnings) {
+    return new ParseException(exceptionMessage(
         "005",
         "Could not parse BPMN process. Errors: {}",
-        string));
+        string),
+        resourceName,
+        errors,
+        warnings);
   }
 
 
@@ -208,5 +219,19 @@ public class EngineUtilLogger extends ProcessEngineLogger {
     logWarn(
         "029",
         "Exception while parsing retry intervals '{}'", intervals, e.getMessage(), e);
+  }
+
+  public void logJsonException(Exception e) {
+    logDebug(
+      "030",
+      "Exception while parsing JSON: {}", e.getMessage(), e);
+  }
+
+  public void logAccessExternalSchemaNotSupported(Exception e) {
+    logDebug(
+        "031",
+        "Could not restrict external schema access. "
+        + "This indicates that this is not supported by your JAXP implementation: {}",
+        e.getMessage());
   }
 }

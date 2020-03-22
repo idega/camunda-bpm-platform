@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
+<!--
 
+    Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+    under one or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information regarding copyright
+    ownership. Camunda licenses this file to you under the Apache License,
+    Version 2.0; you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.JobEntity">
@@ -26,7 +43,7 @@
 
   <update id="updateJobSuspensionStateByParameters" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
     update ${prefix}ACT_RU_JOB set
-      REV_ = REV_ + 1,
+      REV_ = 1 + REV_ ,
       SUSPENSION_STATE_ = #{parameter.suspensionState, jdbcType=INTEGER}
     <where>
       <if test="parameter.jobId != null">
@@ -69,7 +86,7 @@
 
   <update id="updateFailedJobRetriesByParameters" parameterType="java.util.Map">
     update ${prefix}ACT_RU_JOB set
-      REV_ = REV_ + 1,
+      REV_ = 1 + REV_ ,
       LOCK_OWNER_ = NULL,
       LOCK_EXP_TIME_ = NULL,
       RETRIES_ = #{retries, jdbcType=INTEGER}
@@ -103,6 +120,7 @@
     <result property="processDefinitionKey" column="PROCESS_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="retriesFromPersistence" column="RETRIES_" jdbcType="INTEGER" />
     <result property="exceptionByteArrayId" column="EXCEPTION_STACK_ID_" jdbcType="VARCHAR" />
+    <result property="failedActivityId" column="FAILED_ACT_ID_" jdbcType="VARCHAR" />
     <result property="exceptionMessage" column="EXCEPTION_MSG_" jdbcType="VARCHAR" />
     <result property="duedate" column="DUEDATE_" jdbcType="TIMESTAMP" />
     <result property="jobHandlerType" column="HANDLER_TYPE_" jdbcType="VARCHAR" />
@@ -112,6 +130,7 @@
     <result property="jobDefinitionId" column="JOB_DEF_ID_" jdbcType="VARCHAR" />
     <result property="priority" column="PRIORITY_" jdbcType="BIGINT" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="createTime" column="CREATE_TIME_" jdbcType="TIMESTAMP" />
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
     <discriminator javaType="string" column="TYPE_">
       <case value="message" resultMap="messageResultMap"/>
@@ -126,7 +145,17 @@
 
   <resultMap id="timerResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.TimerEntity" extends="jobResultMap">
     <result property="repeat" column="REPEAT_" jdbcType="VARCHAR" />
+    <result property="repeatOffset" column="REPEAT_OFFSET_" jdbcType="BIGINT" />
   </resultMap>
+
+  <resultMap id="acquirableJobResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.AcquirableJobEntity">
+    <id property="id" column="ID_" jdbcType="VARCHAR" />
+    <result property="revision" column="REV_" jdbcType="INTEGER" />
+    <result property="duedate" column="DUEDATE_" jdbcType="TIMESTAMP" />
+    <result property="processInstanceId" column="PROCESS_INSTANCE_ID_" jdbcType="VARCHAR" />
+    <result property="exclusive" column="EXCLUSIVE_" jdbcType="BOOLEAN" />
+  </resultMap>
+
 
   <!-- JOB SELECT (FOR TIMER AND MESSAGE) -->
 
@@ -134,16 +163,25 @@
     select * from ${prefix}ACT_RU_JOB where ID_ = #{id}
   </select>
 
-  <select id="selectNextJobsToExecute" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
+  <select id="selectNextJobsToExecute" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="acquirableJobResultMap">
     <bind name="orderingProperties" value="parameter.orderingProperties" />
     <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select
-      RES.* ${limitBetween}
+    select RES.ID_,
+      RES.REV_,
+      RES.DUEDATE_,
+      RES.PROCESS_INSTANCE_ID_,
+      RES.EXCLUSIVE_
+    ${limitBetweenAcquisition}
     from ${prefix}ACT_RU_JOB RES
 
     where (RES.RETRIES_ &gt; 0)
-      and (RES.DUEDATE_ is null or RES.DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
+      and (
+      <if test="!parameter.alwaysSetDueDate">
+          RES.DUEDATE_ is null or
+      </if>
+          RES.DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP}
+      )
       and (RES.LOCK_OWNER_ is null or RES.LOCK_EXP_TIME_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
       and RES.SUSPENSION_STATE_ = 1
 
@@ -160,6 +198,10 @@
 
       and (<include refid="AtomicExclusiveOrNonExclusiveJobs"/>)
 
+      <if test="!parameter.historyCleanupEnabled">
+        and HANDLER_TYPE_ != 'history-cleanup'
+      </if>
+
     <if test="parameter.applyOrdering">
       ${orderBy}
     </if>
@@ -175,7 +217,7 @@
   <sql id="AtomicExclusiveJobs">
     RES.EXCLUSIVE_ = ${trueConstant}
           and not exists(
-            select J2.* from ${prefix}ACT_RU_JOB J2
+            select J2.ID_ from ${prefix}ACT_RU_JOB J2
             where J2.PROCESS_INSTANCE_ID_ = RES.PROCESS_INSTANCE_ID_                                           -- from the same proc. inst.
             and (J2.EXCLUSIVE_ = ${trueConstant})                                                              -- also exclusive
             and (J2.LOCK_OWNER_ is not null and J2.LOCK_EXP_TIME_ &gt;= #{parameter.now, jdbcType=TIMESTAMP})  -- in progress
@@ -235,8 +277,9 @@
   </select>
 
   <select id="selectJobCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.JobQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectJobByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
 
   <sql id="selectJobByQueryCriteriaSql">
@@ -299,6 +342,12 @@
       <if test="duedateLowerThanOrEqual != null">
         and RES.DUEDATE_ &lt;= #{duedateLowerThanOrEqual}
       </if>
+      <if test="createdAfter != null">
+        and RES.CREATE_TIME_ > #{createdAfter}
+      </if>
+      <if test="createdBefore != null">
+        and RES.CREATE_TIME_ &lt;= #{createdBefore}
+      </if>
       <if test="priorityHigherThanOrEqual != null">
         and RES.PRIORITY_ &gt;= #{priorityHigherThanOrEqual}
       </if>
@@ -310,6 +359,9 @@
       </if>
       <if test="exceptionMessage">
       	and RES.EXCEPTION_MSG_ = #{exceptionMessage}
+      </if>
+      <if test="failedActivityId != null">
+        and RES.FAILED_ACT_ID_ = #{failedActivityId}
       </if>
       <if test="noRetriesLeft">
         and RES.RETRIES_ = 0
@@ -334,7 +386,7 @@
         </if>
       </if>
 
-      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; authCheck.authUserId != null">
         AND
           ( CASE
 
@@ -375,8 +427,10 @@
             RETRIES_,
             EXCEPTION_STACK_ID_,
             EXCEPTION_MSG_,
+            FAILED_ACT_ID_,
             DUEDATE_,
             REPEAT_,
+            REPEAT_OFFSET_,
             HANDLER_TYPE_,
             HANDLER_CFG_,
             DEPLOYMENT_ID_,
@@ -385,6 +439,7 @@
             PRIORITY_,
             SEQUENCE_COUNTER_,
             TENANT_ID_,
+            CREATE_TIME_,
             REV_
           )
     values (#{id, jdbcType=VARCHAR},
@@ -399,8 +454,10 @@
             #{retries, jdbcType=INTEGER},
             #{exceptionByteArrayId, jdbcType=VARCHAR},
             #{exceptionMessage, jdbcType=VARCHAR},
+            #{failedActivityId, jdbcType=VARCHAR},
             #{duedate, jdbcType=TIMESTAMP},
             #{repeat, jdbcType=VARCHAR},
+            #{repeatOffset, jdbcType=BIGINT},
             #{jobHandlerType, jdbcType=VARCHAR},
             #{jobHandlerConfigurationRaw, jdbcType=VARCHAR},
             #{deploymentId, jdbcType=VARCHAR},
@@ -409,6 +466,7 @@
             #{priority, jdbcType=BIGINT},
             #{sequenceCounter, jdbcType=BIGINT},
             #{tenantId, jdbcType=VARCHAR},
+            #{createTime, jdbcType=TIMESTAMP},
             1
     )
   </insert>
@@ -425,7 +483,10 @@
        RETRIES_ = #{retries, jdbcType=INTEGER},
        EXCEPTION_STACK_ID_ = #{exceptionByteArrayId, jdbcType=VARCHAR},
        EXCEPTION_MSG_ = #{exceptionMessage, jdbcType=VARCHAR},
+       FAILED_ACT_ID_ = #{failedActivityId, jdbcType=VARCHAR},
        DUEDATE_ = #{duedate, jdbcType=TIMESTAMP},
+       REPEAT_ = #{repeat, jdbcType=VARCHAR},
+       REPEAT_OFFSET_ = #{repeatOffset, jdbcType=BIGINT},
        SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
        PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
        PROCESS_DEF_KEY_ = #{processDefinitionKey, jdbcType=VARCHAR},
@@ -476,6 +537,7 @@
             RETRIES_,
             EXCEPTION_STACK_ID_,
             EXCEPTION_MSG_,
+            FAILED_ACT_ID_,
             DUEDATE_,
             HANDLER_TYPE_,
             HANDLER_CFG_,
@@ -485,6 +547,7 @@
             PRIORITY_,
             SEQUENCE_COUNTER_,
             TENANT_ID_,
+            CREATE_TIME_,
             REV_
             )
     values (#{id, jdbcType=VARCHAR},
@@ -499,6 +562,7 @@
             #{retries, jdbcType=INTEGER},
             #{exceptionByteArrayId, jdbcType=VARCHAR},
             #{exceptionMessage, jdbcType=VARCHAR},
+            #{failedActivityId, jdbcType=VARCHAR},
             #{duedate, jdbcType=TIMESTAMP},
             #{jobHandlerType, jdbcType=VARCHAR},
             #{jobHandlerConfigurationRaw, jdbcType=VARCHAR},
@@ -508,6 +572,7 @@
             #{priority, jdbcType=BIGINT},
             #{sequenceCounter, jdbcType=BIGINT},
             #{tenantId, jdbcType=VARCHAR},
+            #{createTime, jdbcType=TIMESTAMP},
             1
     )
   </insert>
@@ -523,6 +588,7 @@
        RETRIES_ = #{retries, jdbcType=INTEGER},
        EXCEPTION_STACK_ID_ = #{exceptionByteArrayId, jdbcType=VARCHAR},
        EXCEPTION_MSG_ = #{exceptionMessage, jdbcType=VARCHAR},
+       FAILED_ACT_ID_ = #{failedActivityId, jdbcType=VARCHAR},
        DUEDATE_ = #{duedate, jdbcType=TIMESTAMP},
        SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
        PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
@@ -551,6 +617,7 @@
         RETRIES_,
         EXCEPTION_STACK_ID_,
         EXCEPTION_MSG_,
+        FAILED_ACT_ID_,
         DUEDATE_,
         HANDLER_TYPE_,
         HANDLER_CFG_,
@@ -560,6 +627,7 @@
         PRIORITY_,
         SEQUENCE_COUNTER_,
         TENANT_ID_,
+        CREATE_TIME_,
         REV_
         )
         values (#{id, jdbcType=VARCHAR},
@@ -574,6 +642,7 @@
         #{retries, jdbcType=INTEGER},
         #{exceptionByteArrayId, jdbcType=VARCHAR},
         #{exceptionMessage, jdbcType=VARCHAR},
+        #{failedActivityId, jdbcType=VARCHAR},
         #{duedate, jdbcType=TIMESTAMP},
         #{jobHandlerType, jdbcType=VARCHAR},
         #{jobHandlerConfigurationRaw, jdbcType=VARCHAR},
@@ -583,6 +652,7 @@
         #{priority, jdbcType=BIGINT},
         #{sequenceCounter, jdbcType=BIGINT},
         #{tenantId, jdbcType=VARCHAR},
+        #{createTime, jdbcType=TIMESTAMP},
         1
         )
     </insert>
@@ -598,6 +668,7 @@
             RETRIES_ = #{retries, jdbcType=INTEGER},
             EXCEPTION_STACK_ID_ = #{exceptionByteArrayId, jdbcType=VARCHAR},
             EXCEPTION_MSG_ = #{exceptionMessage, jdbcType=VARCHAR},
+            FAILED_ACT_ID_ = #{failedActivityId, jdbcType=VARCHAR},
             DUEDATE_ = #{duedate, jdbcType=TIMESTAMP},
             SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
             PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
@@ -609,6 +680,21 @@
             SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
         </set>
         where ID_= #{id, jdbcType=VARCHAR}
+        and REV_ = #{revision, jdbcType=INTEGER}
+    </update>
+
+    <!-- ACQUIRABLE JOB UPDATE -->
+    <update id="updateAcquirableJob" parameterType="org.camunda.bpm.engine.impl.persistence.entity.AcquirableJobEntity">
+      update ${prefix}ACT_RU_JOB
+      <set>
+          REV_ =  #{revisionNext, jdbcType=INTEGER},
+          LOCK_EXP_TIME_ = #{lockExpirationTime, jdbcType=TIMESTAMP},
+          LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR},
+          DUEDATE_ = #{duedate, jdbcType=TIMESTAMP},
+          PROCESS_INSTANCE_ID_ = #{processInstanceId, jdbcType=VARCHAR},
+          EXCLUSIVE_ = #{exclusive, jdbcType=BOOLEAN},
+      </set>
+      where ID_= #{id, jdbcType=VARCHAR}
         and REV_ = #{revision, jdbcType=INTEGER}
     </update>
 

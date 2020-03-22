@@ -2,6 +2,14 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://java.sun.com/xml/ns/javaee    http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd">
 
+  <!-- Fetch And Lock Handler (long polling): Unique Worker Request (default value: false) -->
+  <!--
+  <context-param>
+    <param-name>fetch-and-lock-unique-worker-request</param-name>
+    <param-value>true</param-value>
+  </context-param>
+  -->
+
   <listener>
     <listener-class>org.camunda.bpm.engine.rest.impl.FetchAndLockContextListener</listener-class>
   </listener>
@@ -32,6 +40,7 @@
     <filter-class>
       org.camunda.bpm.engine.rest.security.auth.ProcessEngineAuthenticationFilter
     </filter-class>
+	<async-supported>true</async-supported>
     <init-param>
       <param-name>authentication-provider</param-name>
       <param-value>org.camunda.bpm.engine.rest.security.auth.impl.HttpBasicAuthenticationProvider</param-value>

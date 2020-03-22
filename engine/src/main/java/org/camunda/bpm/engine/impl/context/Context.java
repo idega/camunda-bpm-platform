@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,10 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.context;
 
-import java.util.Stack;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.concurrent.Callable;
 
 import org.camunda.bpm.application.InvocationContext;
@@ -37,16 +41,16 @@ import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
  */
 public class Context {
 
-  protected static ThreadLocal<Stack<CommandContext>> commandContextThreadLocal = new ThreadLocal<Stack<CommandContext>>();
-  protected static ThreadLocal<Stack<CommandInvocationContext>> commandInvocationContextThreadLocal = new ThreadLocal<Stack<CommandInvocationContext>>();
+  protected static ThreadLocal<Deque<CommandContext>> commandContextThreadLocal = new ThreadLocal<Deque<CommandContext>>();
+  protected static ThreadLocal<Deque<CommandInvocationContext>> commandInvocationContextThreadLocal = new ThreadLocal<Deque<CommandInvocationContext>>();
 
-  protected static ThreadLocal<Stack<ProcessEngineConfigurationImpl>> processEngineConfigurationStackThreadLocal = new ThreadLocal<Stack<ProcessEngineConfigurationImpl>>();
-  protected static ThreadLocal<Stack<CoreExecutionContext<? extends CoreExecution>>> executionContextStackThreadLocal = new ThreadLocal<Stack<CoreExecutionContext<? extends CoreExecution>>>();
+  protected static ThreadLocal<Deque<ProcessEngineConfigurationImpl>> processEngineConfigurationStackThreadLocal = new ThreadLocal<Deque<ProcessEngineConfigurationImpl>>();
+  protected static ThreadLocal<Deque<CoreExecutionContext<? extends CoreExecution>>> executionContextStackThreadLocal = new ThreadLocal<Deque<CoreExecutionContext<? extends CoreExecution>>>();
   protected static ThreadLocal<JobExecutorContext> jobExecutorContextThreadLocal = new ThreadLocal<JobExecutorContext>();
-  protected static ThreadLocal<Stack<ProcessApplicationReference>> processApplicationContext = new ThreadLocal<Stack<ProcessApplicationReference>>();
+  protected static ThreadLocal<Deque<ProcessApplicationReference>> processApplicationContext = new ThreadLocal<Deque<ProcessApplicationReference>>();
 
   public static CommandContext getCommandContext() {
-    Stack<CommandContext> stack = getStack(commandContextThreadLocal);
+    Deque<CommandContext> stack = getStack(commandContextThreadLocal);
     if (stack.isEmpty()) {
       return null;
     }
@@ -62,7 +66,7 @@ public class Context {
   }
 
   public static CommandInvocationContext getCommandInvocationContext() {
-    Stack<CommandInvocationContext> stack = getStack(commandInvocationContextThreadLocal);
+    Deque<CommandInvocationContext> stack = getStack(commandInvocationContextThreadLocal);
     if (stack.isEmpty()) {
       return null;
     }
@@ -74,11 +78,21 @@ public class Context {
   }
 
   public static void removeCommandInvocationContext() {
-    getStack(commandInvocationContextThreadLocal).pop();
+    Deque<CommandInvocationContext> stack = getStack(commandInvocationContextThreadLocal);
+    CommandInvocationContext currentContext = stack.pop();
+    if (stack.isEmpty()) {
+      // do not clear when called from JobExecutor, will be cleared there after logging
+      if (getJobExecutorContext() == null) {
+        currentContext.getProcessDataContext().clearMdc();
+      }
+    } else {
+      // reset the MDC to the logging context of the outer command invocation
+      stack.peek().getProcessDataContext().updateMdc();
+    }
   }
 
   public static ProcessEngineConfigurationImpl getProcessEngineConfiguration() {
-    Stack<ProcessEngineConfigurationImpl> stack = getStack(processEngineConfigurationStackThreadLocal);
+    Deque<ProcessEngineConfigurationImpl> stack = getStack(processEngineConfigurationStackThreadLocal);
     if (stack.isEmpty()) {
       return null;
     }
@@ -110,7 +124,7 @@ public class Context {
   }
 
   public static CoreExecutionContext<? extends CoreExecution> getCoreExecutionContext() {
-    Stack<CoreExecutionContext<? extends CoreExecution>> stack = getStack(executionContextStackThreadLocal);
+    Deque<CoreExecutionContext<? extends CoreExecution>> stack = getStack(executionContextStackThreadLocal);
     if(stack == null || stack.isEmpty()) {
       return null;
     } else {
@@ -130,10 +144,10 @@ public class Context {
     getStack(executionContextStackThreadLocal).pop();
   }
 
-  protected static <T> Stack<T> getStack(ThreadLocal<Stack<T>> threadLocal) {
-    Stack<T> stack = threadLocal.get();
+  protected static <T> Deque<T> getStack(ThreadLocal<Deque<T>> threadLocal) {
+    Deque<T> stack = threadLocal.get();
     if (stack==null) {
-      stack = new Stack<T>();
+      stack = new ArrayDeque<T>();
       threadLocal.set(stack);
     }
     return stack;
@@ -153,7 +167,7 @@ public class Context {
 
 
   public static ProcessApplicationReference getCurrentProcessApplication() {
-    Stack<ProcessApplicationReference> stack = getStack(processApplicationContext);
+    Deque<ProcessApplicationReference> stack = getStack(processApplicationContext);
     if(stack.isEmpty()) {
       return null;
     } else {
@@ -162,12 +176,12 @@ public class Context {
   }
 
   public static void setCurrentProcessApplication(ProcessApplicationReference reference) {
-    Stack<ProcessApplicationReference> stack = getStack(processApplicationContext);
+    Deque<ProcessApplicationReference> stack = getStack(processApplicationContext);
     stack.push(reference);
   }
 
   public static void removeCurrentProcessApplication() {
-    Stack<ProcessApplicationReference> stack = getStack(processApplicationContext);
+    Deque<ProcessApplicationReference> stack = getStack(processApplicationContext);
     stack.pop();
   }
 

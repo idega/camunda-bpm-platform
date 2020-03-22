@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +28,7 @@ public class HistoricJobLogDto {
 
   protected String id;
   protected Date timestamp;
+  protected Date removalTime;
 
   protected String jobId;
   protected Date jobDueDate;
@@ -36,12 +41,15 @@ public class HistoricJobLogDto {
   protected String jobDefinitionConfiguration;
 
   protected String activityId;
+  protected String failedActivityId;
   protected String executionId;
   protected String processInstanceId;
   protected String processDefinitionId;
   protected String processDefinitionKey;
   protected String deploymentId;
   protected String tenantId;
+  protected String hostname;
+  protected String rootProcessInstanceId;
 
   protected boolean creationLog;
   protected boolean failureLog;
@@ -54,6 +62,10 @@ public class HistoricJobLogDto {
 
   public Date getTimestamp() {
     return timestamp;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
   }
 
   public String getJobId() {
@@ -92,6 +104,10 @@ public class HistoricJobLogDto {
     return activityId;
   }
 
+  public String getFailedActivityId() {
+    return failedActivityId;
+  }
+
   public String getExecutionId() {
     return executionId;
   }
@@ -116,6 +132,14 @@ public class HistoricJobLogDto {
     return tenantId;
   }
 
+  public String getHostname() {
+    return hostname;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public boolean isCreationLog() {
     return creationLog;
   }
@@ -137,6 +161,7 @@ public class HistoricJobLogDto {
 
     result.id = historicJobLog.getId();
     result.timestamp = historicJobLog.getTimestamp();
+    result.removalTime = historicJobLog.getRemovalTime();
 
     result.jobId = historicJobLog.getJobId();
     result.jobDueDate = historicJobLog.getJobDueDate();
@@ -149,12 +174,15 @@ public class HistoricJobLogDto {
     result.jobDefinitionConfiguration = historicJobLog.getJobDefinitionConfiguration();
 
     result.activityId = historicJobLog.getActivityId();
+    result.failedActivityId = historicJobLog.getFailedActivityId();
     result.executionId = historicJobLog.getExecutionId();
     result.processInstanceId = historicJobLog.getProcessInstanceId();
     result.processDefinitionId = historicJobLog.getProcessDefinitionId();
     result.processDefinitionKey = historicJobLog.getProcessDefinitionKey();
     result.deploymentId = historicJobLog.getDeploymentId();
     result.tenantId = historicJobLog.getTenantId();
+    result.hostname = historicJobLog.getHostname();
+    result.rootProcessInstanceId = historicJobLog.getRootProcessInstanceId();
 
     result.creationLog = historicJobLog.isCreationLog();
     result.failureLog = historicJobLog.isFailureLog();

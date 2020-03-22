@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,6 +15,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.rest.dto.history;
+
+import static java.lang.Boolean.TRUE;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.camunda.bpm.engine.ProcessEngine;
@@ -75,6 +81,7 @@ public class HistoricExternalTaskLogQueryDto extends AbstractQueryDto<HistoricEx
   protected Long priorityHigherThanOrEquals;
   protected Long priorityLowerThanOrEquals;
   protected String[] tenantIds;
+  protected Boolean withoutTenantId;
   protected Boolean creationLog;
   protected Boolean failureLog;
   protected Boolean successLog;
@@ -154,6 +161,11 @@ public class HistoricExternalTaskLogQueryDto extends AbstractQueryDto<HistoricEx
   @CamundaQueryParam(value = "tenantIdIn", converter = StringArrayConverter.class)
   public void setTenantIdIn(String[] tenantIds) {
     this.tenantIds = tenantIds;
+  }
+
+  @CamundaQueryParam(value = "withoutTenantId", converter = BooleanConverter.class)
+  public void setWithoutTenantId(Boolean withoutTenantId) {
+    this.withoutTenantId = withoutTenantId;
   }
 
   @CamundaQueryParam(value="creationLog", converter = BooleanConverter.class)
@@ -258,6 +270,9 @@ public class HistoricExternalTaskLogQueryDto extends AbstractQueryDto<HistoricEx
     }
     if (tenantIds != null && tenantIds.length > 0) {
       query.tenantIdIn(tenantIds);
+    }
+    if (TRUE.equals(withoutTenantId)) {
+      query.withoutTenantId();
     }
   }
 

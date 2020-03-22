@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,10 +20,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.authorization.BatchPermissions;
 import org.camunda.bpm.engine.authorization.Permissions;
+import org.camunda.bpm.engine.authorization.ProcessDefinitionPermissions;
+import org.camunda.bpm.engine.authorization.ProcessInstancePermissions;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.migration.MigrationPlan;
 import org.camunda.bpm.engine.migration.MigrationPlanBuilder;
 import org.camunda.bpm.engine.migration.MigrationPlanExecutionBuilder;
@@ -601,7 +609,8 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason);
 
@@ -618,7 +627,8 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason, boolean skipCustomListeners);
 
@@ -637,9 +647,36 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason, boolean skipCustomListeners, boolean skipSubprocesses);
+
+  /**
+   * Delete an existing runtime process instances asynchronously using Batch operation.
+   *
+   * Deletion propagates upward as far as necessary.
+   *
+   * @param processInstanceIds id's of process instances to delete.
+   * @param processInstanceQuery query that will be used to fetch affected process instances.
+   * @param historicProcessInstanceQuery query that will be used to fetch affected
+   *                                     process instances based on history data.
+   * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
+   * @param skipCustomListeners skips custom execution listeners when removing instances
+   * @param skipSubprocesses skips subprocesses when removing instances
+   *
+   * @throws BadUserRequestException
+   *          when no process instance is found with the given queries or ids.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
+   */
+  Batch deleteProcessInstancesAsync(List<String> processInstanceIds,
+                                    ProcessInstanceQuery processInstanceQuery,
+                                    HistoricProcessInstanceQuery historicProcessInstanceQuery,
+                                    String deleteReason,
+                                    boolean skipCustomListeners,
+                                    boolean skipSubprocesses);
 
   /**
    * Delete an existing runtime process instances asynchronously using Batch operation.
@@ -653,7 +690,8 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(ProcessInstanceQuery processInstanceQuery, String deleteReason);
 
@@ -671,7 +709,8 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} or
+   *          {@link BatchPermissions#CREATE_BATCH_DELETE_RUNNING_PROCESS_INSTANCES} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, String deleteReason);
 
@@ -760,6 +799,31 @@ public interface RuntimeService {
   boolean skipSubprocesses);
 
   /**
+   * Delete existing runtime process instances.
+   *
+   * Deletion propagates upward as far as necessary.
+   * 
+   * Does not fail if a process instance was not found.
+   *
+   * @param processInstanceIds ids of process instance to delete, cannot be null.
+   * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   * @param externallyTerminated indicator if deletion triggered from external context, for instance
+   *                             REST API call
+   * @param skipSubprocesses specifies whether subprocesses should be deleted
+   *
+   *
+   * @throws BadUserRequestException
+   *          when no process instance is found with the given id or id is null.
+   * @throws AuthorizationException
+   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteProcessInstancesIfExists(List<String> processInstanceIds, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated,
+      boolean skipSubprocesses);
+
+  /**
    * Delete an existing runtime process instance.
    *
    * Deletion propagates upward as far as necessary.
@@ -803,6 +867,32 @@ public interface RuntimeService {
    *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void deleteProcessInstance(String processInstanceId, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated, boolean skipIoMappings,
+      boolean skipSubprocesses);
+  
+  /**
+   * Delete an existing runtime process instance.
+   *
+   * Deletion propagates upward as far as necessary.
+   * 
+   * Does not fail if a process instance was not found.
+   *
+   * @param processInstanceId id of process instance to delete, cannot be null.
+   * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   * @param externallyTerminated indicator if deletion triggered from external context, for instance
+   *                             REST API call
+   * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
+   * @param skipSubprocesses specifies whether subprocesses should be deleted
+   *
+   *
+   * @throws BadUserRequestException
+   *          when no process instance is found with the given id or id is null.
+   * @throws AuthorizationException
+   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteProcessInstanceIfExists(String processInstanceId, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated, boolean skipIoMappings,
       boolean skipSubprocesses);
 
   /**
@@ -941,8 +1031,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Map<String, Object> getVariables(String executionId);
 
@@ -956,8 +1048,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -975,8 +1069,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -994,8 +1090,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Map<String, Object> getVariablesLocal(String executionId);
 
@@ -1011,8 +1109,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   VariableMap getVariablesLocalTyped(String executionId);
 
@@ -1029,8 +1129,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    */
@@ -1047,8 +1149,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Map<String,Object> getVariables(String executionId, Collection<String> variableNames);
 
@@ -1063,8 +1167,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1082,8 +1188,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Map<String,Object> getVariablesLocal(String executionId, Collection<String> variableNames);
 
@@ -1098,8 +1206,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1118,8 +1228,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Object getVariable(String executionId, String variableName);
 
@@ -1135,8 +1247,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1156,8 +1270,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1176,8 +1292,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   Object getVariableLocal(String executionId, String variableName);
 
@@ -1193,8 +1311,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1214,8 +1334,10 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          <li>if the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_INSTANCE} or
+   *          no {@link Permissions#READ_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li> In case {@link ProcessEngineConfiguration#enforceSpecificVariablePermission this} config is enabled and
+   *          the user has no {@link ProcessDefinitionPermisions#READ_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    *
    * @since 7.2
    *
@@ -1235,8 +1357,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void setVariable(String executionId, String variableName, Object value);
 
@@ -1252,8 +1377,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void setVariableLocal(String executionId, String variableName, Object value);
 
@@ -1267,8 +1395,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void setVariables(String executionId, Map<String, ? extends Object> variables);
 
@@ -1281,8 +1412,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void setVariablesLocal(String executionId, Map<String, ? extends Object> variables);
 
@@ -1295,8 +1429,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void removeVariable(String executionId, String variableName);
 
@@ -1309,8 +1446,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void removeVariableLocal(String executionId, String variableName);
 
@@ -1323,8 +1463,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void removeVariables(String executionId, Collection<String> variableNames);
 
@@ -1337,8 +1480,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          when no execution is found for the given executionId.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#UPDATE_VARIABLE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#UPDATE_INSTANCE_VARIABLE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void removeVariablesLocal(String executionId, Collection<String> variableNames);
 
@@ -1416,8 +1562,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void suspendProcessInstanceById(String processInstanceId);
 
@@ -1451,7 +1600,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void suspendProcessInstanceByProcessDefinitionId(String processDefinitionId);
 
@@ -1485,7 +1638,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void suspendProcessInstanceByProcessDefinitionKey(String processDefinitionKey);
 
@@ -1501,8 +1658,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void activateProcessInstanceById(String processInstanceId);
 
@@ -1518,7 +1678,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if the process definition id is null
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void activateProcessInstanceByProcessDefinitionId(String processDefinitionId);
 
@@ -1534,7 +1698,11 @@ public interface RuntimeService {
    * @throws ProcessEngineException
    *          if the process definition id is null
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          if the user has none of the following:
+   *          <li>{@link ProcessInstancePermissions#SUSPEND} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link ProcessDefinitionPermissions#SUSPEND_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *          <li>{@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *          <li>{@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
    */
   void activateProcessInstanceByProcessDefinitionKey(String processDefinitionKey);
 

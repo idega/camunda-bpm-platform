@@ -1,3 +1,20 @@
+--
+-- Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+-- under one or more contributor license agreements. See the NOTICE file
+-- distributed with this work for additional information regarding copyright
+-- ownership. Camunda licenses this file to you under the Apache License,
+-- Version 2.0; you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
 create table ACT_GE_PROPERTY (
     NAME_ varchar(64),
     VALUE_ varchar(300),
@@ -31,13 +48,27 @@ create table ACT_GE_BYTEARRAY (
     BYTES_ LONGBLOB,
     GENERATED_ TINYINT,
     TENANT_ID_ varchar(64),
+    TYPE_ integer,
+    CREATE_TIME_ datetime(3),
+    ROOT_PROC_INST_ID_ varchar(64),
+    REMOVAL_TIME_ datetime(3),
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
+
+create table ACT_GE_SCHEMA_LOG (
+    ID_ varchar(64),
+    TIMESTAMP_ datetime(3),
+    VERSION_ varchar(255),
+    primary key (ID_)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
+
+insert into ACT_GE_SCHEMA_LOG
+values ('0', CURRENT_TIMESTAMP, '7.13.0');
 
 create table ACT_RE_DEPLOYMENT (
     ID_ varchar(64),
     NAME_ varchar(255),
-    DEPLOY_TIME_ timestamp(3),
+    DEPLOY_TIME_ datetime(3),
     SOURCE_ varchar(255),
     TENANT_ID_ varchar(64),
     primary key (ID_)
@@ -46,6 +77,7 @@ create table ACT_RE_DEPLOYMENT (
 create table ACT_RU_EXECUTION (
     ID_ varchar(64),
     REV_ integer,
+    ROOT_PROC_INST_ID_ varchar(64),
     PROC_INST_ID_ varchar(64),
     BUSINESS_KEY_ varchar(255),
     PARENT_ID_ varchar(64),
@@ -70,7 +102,7 @@ create table ACT_RU_JOB (
     ID_ varchar(64) NOT NULL,
     REV_ integer,
     TYPE_ varchar(255) NOT NULL,
-    LOCK_EXP_TIME_ timestamp(3) NULL,
+    LOCK_EXP_TIME_ datetime(3) NULL,
     LOCK_OWNER_ varchar(255),
     EXCLUSIVE_ boolean,
     EXECUTION_ID_ varchar(64),
@@ -80,8 +112,10 @@ create table ACT_RU_JOB (
     RETRIES_ integer,
     EXCEPTION_STACK_ID_ varchar(64),
     EXCEPTION_MSG_ varchar(4000),
-    DUEDATE_ timestamp(3) NULL,
+    FAILED_ACT_ID_ varchar(255),
+    DUEDATE_ datetime(3) NULL,
     REPEAT_ varchar(255),
+    REPEAT_OFFSET_ bigint DEFAULT 0,
     HANDLER_TYPE_ varchar(255),
     HANDLER_CFG_ varchar(4000),
     DEPLOYMENT_ID_ varchar(64),
@@ -90,6 +124,7 @@ create table ACT_RU_JOB (
     PRIORITY_ bigint NOT NULL DEFAULT 0,
     SEQUENCE_COUNTER_ bigint,
     TENANT_ID_ varchar(64),
+    CREATE_TIME_ datetime(3),
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -143,7 +178,7 @@ create table ACT_RU_TASK (
     ASSIGNEE_ varchar(255),
     DELEGATION_ varchar(64),
     PRIORITY_ integer,
-    CREATE_TIME_ timestamp(3),
+    CREATE_TIME_ datetime(3),
     DUE_DATE_ datetime(3),
     FOLLOW_UP_DATE_ datetime(3),
     SUSPENSION_STATE_ integer,
@@ -194,7 +229,7 @@ create table ACT_RU_EVENT_SUBSCR (
     PROC_INST_ID_ varchar(64),
     ACTIVITY_ID_ varchar(255),
     CONFIGURATION_ varchar(255),
-    CREATED_ timestamp(3) not null,
+    CREATED_ datetime(3) not null,
     TENANT_ID_ varchar(64),
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
@@ -202,11 +237,12 @@ create table ACT_RU_EVENT_SUBSCR (
 create table ACT_RU_INCIDENT (
   ID_ varchar(64) not null,
   REV_ integer not null,
-  INCIDENT_TIMESTAMP_ timestamp(3) not null,
+  INCIDENT_TIMESTAMP_ datetime(3) not null,
   INCIDENT_MSG_ varchar(4000),
   INCIDENT_TYPE_ varchar(255) not null,
   EXECUTION_ID_ varchar(64),
   ACTIVITY_ID_ varchar(255),
+  FAILED_ACTIVITY_ID_ varchar(255),
   PROC_INST_ID_ varchar(64),
   PROC_DEF_ID_ varchar(64),
   CAUSE_INCIDENT_ID_ varchar(64),
@@ -245,7 +281,7 @@ create table ACT_RU_METER_LOG (
   NAME_ varchar(64) not null,
   REPORTER_ varchar(255),
   VALUE_ bigint,
-  TIMESTAMP_ timestamp(3),
+  TIMESTAMP_ datetime(3),
   MILLISECONDS_ bigint DEFAULT 0,
   primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
@@ -258,7 +294,7 @@ create table ACT_RU_EXT_TASK (
   RETRIES_ integer,
   ERROR_MSG_ varchar(4000),
   ERROR_DETAILS_ID_ varchar(64),
-  LOCK_EXP_TIME_ timestamp(3) NULL,
+  LOCK_EXP_TIME_ datetime(3) NULL,
   SUSPENSION_STATE_ integer,
   EXECUTION_ID_ varchar(64),
   PROC_INST_ID_ varchar(64),
@@ -285,9 +321,11 @@ create table ACT_RU_BATCH (
   SUSPENSION_STATE_ integer,
   CONFIGURATION_ varchar(255),
   TENANT_ID_ varchar(64),
+  CREATE_USER_ID_ varchar(255),
   primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
+create index ACT_IDX_EXEC_ROOT_PI on ACT_RU_EXECUTION(ROOT_PROC_INST_ID_);
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
 create index ACT_IDX_EXEC_TENANT_ID on ACT_RU_EXECUTION(TENANT_ID_);
 create index ACT_IDX_TASK_CREATE on ACT_RU_TASK(CREATE_TIME_);
@@ -484,6 +522,8 @@ create index ACT_IDX_AUTH_RESOURCE_ID on ACT_RU_AUTHORIZATION(RESOURCE_ID_);
 create index ACT_IDX_EXT_TASK_EXEC on ACT_RU_EXT_TASK(EXECUTION_ID_);
 
 -- indexes to improve deployment
+create index ACT_IDX_BYTEARRAY_ROOT_PI on ACT_GE_BYTEARRAY(ROOT_PROC_INST_ID_);
+create index ACT_IDX_BYTEARRAY_RM_TIME on ACT_GE_BYTEARRAY(REMOVAL_TIME_);
 create index ACT_IDX_BYTEARRAY_NAME on ACT_GE_BYTEARRAY(NAME_);
 create index ACT_IDX_DEPLOYMENT_NAME on ACT_RE_DEPLOYMENT(NAME_);
 create index ACT_IDX_DEPLOYMENT_TENANT_ID on ACT_RE_DEPLOYMENT(TENANT_ID_);

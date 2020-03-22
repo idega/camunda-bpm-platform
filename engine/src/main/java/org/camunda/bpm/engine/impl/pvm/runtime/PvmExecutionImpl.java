@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +25,11 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.core.variable.event.VariableEvent;
 import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventProcessor;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
+import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.incident.DefaultIncidentHandler;
 import org.camunda.bpm.engine.impl.incident.IncidentContext;
 import org.camunda.bpm.engine.impl.incident.IncidentHandler;
@@ -32,7 +41,6 @@ import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.delegate.ModificationObserverBehavior;
 import org.camunda.bpm.engine.impl.pvm.delegate.SignallableActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.process.*;
-import org.camunda.bpm.engine.impl.pvm.runtime.operation.FoxAtomicOperationDeleteCascadeFireActivityEnd;
 import org.camunda.bpm.engine.impl.pvm.runtime.operation.PvmAtomicOperation;
 import org.camunda.bpm.engine.impl.tree.*;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
@@ -116,6 +124,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   protected boolean isConcurrent = false;
   protected boolean isEnded = false;
   protected boolean isEventScope = false;
+  protected boolean isRemoved = false;
 
   /**
    * transient; used for process instance modification to preserve a scope from getting deleted
@@ -126,6 +135,8 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
    * marks the current activity instance
    */
   protected int activityInstanceState = ActivityInstanceState.DEFAULT.getStateCode();
+
+  protected boolean activityInstanceEndListenersFailed = false;
 
   // sequence counter ////////////////////////////////////////////////////////
   protected long sequenceCounter = 0;
@@ -226,11 +237,12 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     startContext = new ProcessInstanceStartContext(getActivity());
 
     initialize();
-    initializeTimerDeclarations();
 
     if (variables != null) {
       setVariables(variables);
     }
+
+    initializeTimerDeclarations();
 
     fireHistoricProcessStartEvent();
 
@@ -267,7 +279,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   protected void removeEventScopes() {
-    List<PvmExecutionImpl> childExecutions = new ArrayList<PvmExecutionImpl>(getEventScopeExecutions());
+    List<PvmExecutionImpl> childExecutions = new ArrayList<>(getEventScopeExecutions());
     for (PvmExecutionImpl childExecution : childExecutions) {
       LOG.removingEventScope(childExecution);
       childExecution.destroy();
@@ -275,21 +287,21 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     }
   }
 
-  public void clearScope(String reason, boolean skipCustomListeners, boolean skipIoMappings) {
+  public void clearScope(String reason, boolean skipCustomListeners, boolean skipIoMappings, boolean externallyTerminated) {
     this.skipCustomListeners = skipCustomListeners;
     this.skipIoMapping = skipIoMappings;
 
     if (getSubProcessInstance() != null) {
-      getSubProcessInstance().deleteCascade(reason, skipCustomListeners, skipIoMappings);
+      getSubProcessInstance().deleteCascade(reason, skipCustomListeners, skipIoMappings, externallyTerminated, false);
     }
 
     // remove all child executions and sub process instances:
-    List<PvmExecutionImpl> executions = new ArrayList<PvmExecutionImpl>(getNonEventScopeExecutions());
+    List<PvmExecutionImpl> executions = new ArrayList<>(getNonEventScopeExecutions());
     for (PvmExecutionImpl childExecution : executions) {
       if (childExecution.getSubProcessInstance() != null) {
-        childExecution.getSubProcessInstance().deleteCascade(reason, skipCustomListeners, skipIoMappings);
+        childExecution.getSubProcessInstance().deleteCascade(reason, skipCustomListeners, skipIoMappings, externallyTerminated, false);
       }
-      childExecution.deleteCascade(reason, skipCustomListeners, skipIoMappings);
+      childExecution.deleteCascade(reason, skipCustomListeners, skipIoMappings, externallyTerminated, false);
     }
 
     // fire activity end on active activity
@@ -312,13 +324,13 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
    */
   @Override
   public void interrupt(String reason) {
-    interrupt(reason, false, false);
+    interrupt(reason, false, false, false);
   }
 
-  public void interrupt(String reason, boolean skipCustomListeners, boolean skipIoMappings) {
+  public void interrupt(String reason, boolean skipCustomListeners, boolean skipIoMappings, boolean externallyTerminated) {
     LOG.interruptingExecution(reason, skipCustomListeners);
 
-    clearScope(reason, skipCustomListeners, skipIoMappings);
+    clearScope(reason, skipCustomListeners, skipIoMappings, externallyTerminated);
   }
 
   /**
@@ -341,6 +353,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     }
 
     performOperation(PvmAtomicOperation.ACTIVITY_NOTIFY_LISTENER_END);
+
   }
 
   @Override
@@ -399,12 +412,17 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     isActive = false;
     isEnded = true;
+    isRemoved = true;
 
     if (hasReplacedParent()) {
       getParent().replacedBy = null;
     }
 
     removeEventScopes();
+  }
+
+  public boolean isRemoved() {
+    return isRemoved;
   }
 
   public PvmExecutionImpl createConcurrentExecution() {
@@ -538,11 +556,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   @Override
   public void deleteCascade(String deleteReason) {
-    deleteCascade(deleteReason, false);
-  }
-
-  public void deleteCascade(String deleteReason, boolean skipCustomListeners) {
-    deleteCascade(deleteReason, skipCustomListeners, false);
+    deleteCascade(deleteReason, false, false);
   }
 
   public void deleteCascade(String deleteReason, boolean skipCustomListeners, boolean skipIoMappings) {
@@ -558,12 +572,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     this.externallyTerminated = externallyTerminated;
     this.skipSubprocesses = skipSubprocesses;
     performOperation(PvmAtomicOperation.DELETE_CASCADE);
-  }
-
-  public void deleteCascade2(String deleteReason) {
-    this.deleteReason = deleteReason;
-    setDeleteRoot(true);
-    performOperation(new FoxAtomicOperationDeleteCascadeFireActivityEnd());
   }
 
   public void executeEventHandlerActivity(ActivityImpl eventHandlerActivity) {
@@ -688,7 +696,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     // activity instance id handling
     this.activityInstanceId = execution.getActivityInstanceId();
     this.isActive = execution.isActive;
-    this.deleteRoot = execution.deleteRoot;
 
     this.replacedBy = null;
     execution.replacedBy = this;
@@ -730,9 +737,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     if (this.transition == null) {
       throw new PvmException(toString() + ": no transition to take specified");
     }
-    if (transition == null) {
-      throw new PvmException("transition is null");
-    }
     TransitionImpl transitionImpl = transition;
     setActivity(transitionImpl.getSource());
     // while executing the transition, the activityInstance is 'null'
@@ -772,6 +776,9 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     }
 
     PvmActivity activityImpl = activity;
+    this.isEnded = false;
+    this.isActive = true;
+
     switch (activityStartBehavior) {
       case CONCURRENT_IN_FLOW_SCOPE:
         this.nextActivity = activityImpl;
@@ -845,13 +852,13 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     ExecutionStartContext executionStartContext = new ExecutionStartContext(false);
 
-    InstantiationStack instantiationStack = new InstantiationStack(new LinkedList<PvmActivity>(activityStack));
+    InstantiationStack instantiationStack = new InstantiationStack(new LinkedList<>(activityStack));
     executionStartContext.setInstantiationStack(instantiationStack);
     setStartContext(executionStartContext);
 
     performOperation(PvmAtomicOperation.ACTIVITY_INIT_STACK_AND_RETURN);
 
-    Map<PvmActivity, PvmExecutionImpl> createdExecutions = new HashMap<PvmActivity, PvmExecutionImpl>();
+    Map<PvmActivity, PvmExecutionImpl> createdExecutions = new HashMap<>();
 
     PvmExecutionImpl currentExecution = this;
     for (PvmActivity instantiatedActivity : activityStack) {
@@ -915,7 +922,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   @Override
   @SuppressWarnings({"rawtypes", "unchecked"})
   public List<ActivityExecution> findInactiveConcurrentExecutions(PvmActivity activity) {
-    List<PvmExecutionImpl> inactiveConcurrentExecutionsInActivity = new ArrayList<PvmExecutionImpl>();
+    List<PvmExecutionImpl> inactiveConcurrentExecutionsInActivity = new ArrayList<>();
     if (isConcurrent()) {
       return getParent().findInactiveChildExecutions(activity);
     } else if (!isActive()) {
@@ -928,7 +935,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   @Override
   @SuppressWarnings({"rawtypes", "unchecked"})
   public List<ActivityExecution> findInactiveChildExecutions(PvmActivity activity) {
-    List<PvmExecutionImpl> inactiveConcurrentExecutionsInActivity = new ArrayList<PvmExecutionImpl>();
+    List<PvmExecutionImpl> inactiveConcurrentExecutionsInActivity = new ArrayList<>();
     List<? extends PvmExecutionImpl> concurrentExecutions = getAllChildExecutions();
     for (PvmExecutionImpl concurrentExecution : concurrentExecutions) {
       if (concurrentExecution.getActivity() == activity && !concurrentExecution.isActive()) {
@@ -940,7 +947,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   protected List<PvmExecutionImpl> getAllChildExecutions() {
-    List<PvmExecutionImpl> childExecutions = new ArrayList<PvmExecutionImpl>();
+    List<PvmExecutionImpl> childExecutions = new ArrayList<>();
     for (PvmExecutionImpl childExecution : getExecutions()) {
       childExecutions.add(childExecution);
       childExecutions.addAll(childExecution.getAllChildExecutions());
@@ -957,7 +964,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   public void leaveActivityViaTransitions(List<PvmTransition> _transitions, List<? extends ActivityExecution> _recyclableExecutions) {
     List<? extends ActivityExecution> recyclableExecutions = Collections.emptyList();
     if (_recyclableExecutions != null) {
-      recyclableExecutions = new ArrayList<ActivityExecution>(_recyclableExecutions);
+      recyclableExecutions = new ArrayList<>(_recyclableExecutions);
     }
 
     // if recyclable executions size is greater
@@ -1031,7 +1038,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   public List<? extends PvmExecutionImpl> getNonEventScopeExecutions() {
     List<? extends PvmExecutionImpl> children = getExecutions();
-    List<PvmExecutionImpl> result = new ArrayList<PvmExecutionImpl>();
+    List<PvmExecutionImpl> result = new ArrayList<>();
 
     for (PvmExecutionImpl child : children) {
       if (!child.isEventScope()) {
@@ -1044,7 +1051,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   public List<? extends PvmExecutionImpl> getEventScopeExecutions() {
     List<? extends PvmExecutionImpl> children = getExecutions();
-    List<PvmExecutionImpl> result = new ArrayList<PvmExecutionImpl>();
+    List<PvmExecutionImpl> result = new ArrayList<>();
 
     for (PvmExecutionImpl child : children) {
       if (child.isEventScope()) {
@@ -1073,7 +1080,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   @Override
   public List<PvmExecution> findExecutions(String activityId) {
-    List<PvmExecution> matchingExecutions = new ArrayList<PvmExecution>();
+    List<PvmExecution> matchingExecutions = new ArrayList<>();
     collectExecutions(activityId, matchingExecutions);
 
     return matchingExecutions;
@@ -1093,7 +1100,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   @Override
   public List<String> findActiveActivityIds() {
-    List<String> activeActivityIds = new ArrayList<String>();
+    List<String> activeActivityIds = new ArrayList<>();
     collectActiveActivityIds(activeActivityIds);
     return activeActivityIds;
   }
@@ -1114,6 +1121,24 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   @Override
   public String getProcessBusinessKey() {
     return getProcessInstance().getBusinessKey();
+  }
+
+  @Override
+  public void setProcessBusinessKey(String businessKey) {
+    final PvmExecutionImpl processInstance = getProcessInstance();
+    processInstance.setBusinessKey(businessKey);
+
+    HistoryLevel historyLevel = Context
+    .getCommandContext().getProcessEngineConfiguration().getHistoryLevel();
+    if (historyLevel.isHistoryEventProduced(HistoryEventTypes.PROCESS_INSTANCE_UPDATE, processInstance)) {
+
+      HistoryEventProcessor.processHistoryEvents(new HistoryEventProcessor.HistoryEventCreator() {
+        @Override
+        public HistoryEvent createHistoryEvent(HistoryEventProducer producer) {
+          return producer.createProcessInstanceUpdateEvt(processInstance);
+        }
+      });
+    }
   }
 
   @Override
@@ -1209,6 +1234,8 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
       initializeTimerDeclarations();
     }
 
+    activityInstanceEndListenersFailed = false;
+
   }
 
   public void activityInstanceStarting() {
@@ -1224,6 +1251,10 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     this.activityInstanceState = ENDING.getStateCode();
   }
 
+  public void activityInstanceEndListenerFailure() {
+    this.activityInstanceEndListenersFailed = true;
+  }
+
   protected abstract String generateActivityInstanceId(String activityId);
 
   @Override
@@ -1234,6 +1265,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     activityInstanceId = getParentActivityInstanceId();
 
     activityInstanceState = ActivityInstanceState.DEFAULT.getStateCode();
+    activityInstanceEndListenersFailed = false;
   }
 
   @Override
@@ -1431,7 +1463,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     Collections.reverse(leaves);
 
     // 3. Iteratively extend the mapping for every additional leaf
-    Map<ScopeImpl, PvmExecutionImpl> mapping = new HashMap<ScopeImpl, PvmExecutionImpl>();
+    Map<ScopeImpl, PvmExecutionImpl> mapping = new HashMap<>();
     for (PvmExecutionImpl leaf : leaves) {
       ScopeImpl leafFlowScope = leaf.getFlowScope();
       PvmExecutionImpl leafFlowScopeExecution = leaf.getFlowScopeExecution();
@@ -1541,7 +1573,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
     if (scopes.size() == scopeExecutions.size()) {
       // the trees are in sync
-      Map<ScopeImpl, PvmExecutionImpl> result = new HashMap<ScopeImpl, PvmExecutionImpl>();
+      Map<ScopeImpl, PvmExecutionImpl> result = new HashMap<>();
       for (int i = 0; i < scopes.size(); i++) {
         result.put(scopes.get(i), scopeExecutions.get(i));
       }
@@ -1660,9 +1692,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   public void setDeleteRoot(boolean deleteRoot) {
-    if (getReplacedBy() != null) {
-      getReplacedBy().setDeleteRoot(deleteRoot);
-    }
     this.deleteRoot = deleteRoot;
   }
 
@@ -1760,6 +1789,10 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     return activityInstanceState == state.getStateCode();
   }
 
+  public boolean hasFailedOnEndListeners() {
+    return activityInstanceEndListenersFailed;
+  }
+
   public boolean isEventScope() {
     return isEventScope;
   }
@@ -1834,7 +1867,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   /**
    * Contains the delayed variable events, which will be dispatched on a save point.
    */
-  protected transient List<DelayedVariableEvent> delayedEvents = new ArrayList<DelayedVariableEvent>();
+  protected transient List<DelayedVariableEvent> delayedEvents = new ArrayList<>();
 
   /**
    * Delays a given variable event with the given target scope.
@@ -1980,11 +2013,11 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   protected void dispatchScopeEvents(PvmExecutionImpl execution) {
     PvmExecutionImpl scopeExecution = execution.isScope() ? execution : execution.getParent();
 
-    List<DelayedVariableEvent> delayedEvents = new ArrayList<DelayedVariableEvent>(scopeExecution.getDelayedEvents());
+    List<DelayedVariableEvent> delayedEvents = new ArrayList<>(scopeExecution.getDelayedEvents());
     scopeExecution.clearDelayedEvents();
 
-    Map<PvmExecutionImpl, String> activityInstanceIds = new HashMap<PvmExecutionImpl, String>();
-    Map<PvmExecutionImpl, String> activityIds = new HashMap<PvmExecutionImpl, String>();
+    Map<PvmExecutionImpl, String> activityInstanceIds = new HashMap<>();
+    Map<PvmExecutionImpl, String> activityIds = new HashMap<>();
     initActivityIds(delayedEvents, activityInstanceIds, activityIds);
 
     //For each delayed variable event we have to check if the delayed event can be dispatched,

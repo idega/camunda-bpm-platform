@@ -1,3 +1,20 @@
+--
+-- Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+-- under one or more contributor license agreements. See the NOTICE file
+-- distributed with this work for additional information regarding copyright
+-- ownership. Camunda licenses this file to you under the Apache License,
+-- Version 2.0; you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
 create table ACT_GE_PROPERTY (
     NAME_ varchar(64),
     VALUE_ varchar(300),
@@ -31,8 +48,22 @@ create table ACT_GE_BYTEARRAY (
     BYTES_ bytea,
     GENERATED_ boolean,
     TENANT_ID_ varchar(64),
+    TYPE_ integer,
+    CREATE_TIME_ timestamp,
+    ROOT_PROC_INST_ID_ varchar(64),
+    REMOVAL_TIME_ timestamp,
     primary key (ID_)
 );
+
+create table ACT_GE_SCHEMA_LOG (
+    ID_ varchar(64),
+    TIMESTAMP_ timestamp,
+    VERSION_ varchar(255),
+    primary key (ID_)
+);
+
+insert into ACT_GE_SCHEMA_LOG
+values ('0', CURRENT_TIMESTAMP, '7.13.0');
 
 create table ACT_RE_DEPLOYMENT (
     ID_ varchar(64),
@@ -46,6 +77,7 @@ create table ACT_RE_DEPLOYMENT (
 create table ACT_RU_EXECUTION (
     ID_ varchar(64),
     REV_ integer,
+    ROOT_PROC_INST_ID_ varchar(64),
     PROC_INST_ID_ varchar(64),
     BUSINESS_KEY_ varchar(255),
     PARENT_ID_ varchar(64),
@@ -80,8 +112,10 @@ create table ACT_RU_JOB (
     RETRIES_ integer,
     EXCEPTION_STACK_ID_ varchar(64),
     EXCEPTION_MSG_ varchar(4000),
+    FAILED_ACT_ID_ varchar(255),
     DUEDATE_ timestamp,
     REPEAT_ varchar(255),
+    REPEAT_OFFSET_ bigint DEFAULT 0,
     HANDLER_TYPE_ varchar(255),
     HANDLER_CFG_ varchar(4000),
     DEPLOYMENT_ID_ varchar(64),
@@ -90,6 +124,7 @@ create table ACT_RU_JOB (
     PRIORITY_ bigint NOT NULL DEFAULT 0,
     SEQUENCE_COUNTER_ bigint,
     TENANT_ID_ varchar(64),
+    CREATE_TIME_ timestamp,
     primary key (ID_)
 );
 
@@ -207,6 +242,7 @@ create table ACT_RU_INCIDENT (
   INCIDENT_TYPE_ varchar(255) not null,
   EXECUTION_ID_ varchar(64),
   ACTIVITY_ID_ varchar(255),
+  FAILED_ACTIVITY_ID_ varchar(255),
   PROC_INST_ID_ varchar(64),
   PROC_DEF_ID_ varchar(64),
   CAUSE_INCIDENT_ID_ varchar(64),
@@ -285,9 +321,11 @@ create table ACT_RU_BATCH (
   SUSPENSION_STATE_ integer,
   CONFIGURATION_ varchar(255),
   TENANT_ID_ varchar(64),
+  CREATE_USER_ID_ varchar(255),
   primary key (ID_)
 );
 
+create index ACT_IDX_EXE_ROOT_PI on ACT_RU_EXECUTION(ROOT_PROC_INST_ID_);
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
 create index ACT_IDX_EXEC_TENANT_ID on ACT_RU_EXECUTION(TENANT_ID_);
 create index ACT_IDX_TASK_CREATE on ACT_RU_TASK(CREATE_TIME_);
@@ -498,6 +536,8 @@ create index ACT_IDX_AUTH_RESOURCE_ID on ACT_RU_AUTHORIZATION(RESOURCE_ID_);
 create index ACT_IDX_EXT_TASK_EXEC on ACT_RU_EXT_TASK(EXECUTION_ID_);
 
 -- indexes to improve deployment
+create index ACT_IDX_BYTEARRAY_ROOT_PI on ACT_GE_BYTEARRAY(ROOT_PROC_INST_ID_);
+create index ACT_IDX_BYTEARRAY_RM_TIME on ACT_GE_BYTEARRAY(REMOVAL_TIME_);
 create index ACT_IDX_BYTEARRAY_NAME on ACT_GE_BYTEARRAY(NAME_);
 create index ACT_IDX_DEPLOYMENT_NAME on ACT_RE_DEPLOYMENT(NAME_);
 create index ACT_IDX_DEPLOYMENT_TENANT_ID on ACT_RE_DEPLOYMENT(TENANT_ID_);

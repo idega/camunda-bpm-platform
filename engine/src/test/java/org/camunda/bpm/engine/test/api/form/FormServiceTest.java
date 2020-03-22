@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,9 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.form;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.camunda.bpm.engine.variable.Variables.booleanValue;
 import static org.camunda.bpm.engine.variable.Variables.createVariables;
 import static org.camunda.bpm.engine.variable.Variables.objectValue;
@@ -56,6 +60,9 @@ import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.form.type.AbstractFormFieldType;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.interceptor.Command;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -70,9 +77,12 @@ import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.commons.utils.IoUtil;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -86,7 +96,8 @@ import org.junit.rules.RuleChain;
  */
 public class FormServiceTest {
 
-  protected ProcessEngineBootstrapRule bootstrapRule = new ProcessEngineBootstrapRule() {
+  @ClassRule
+  public static ProcessEngineBootstrapRule bootstrapRule = new ProcessEngineBootstrapRule() {
     public ProcessEngineConfiguration configureEngine(ProcessEngineConfigurationImpl configuration) {
       configuration.setJavaSerializationFormatEnabled(true);
       return configuration;
@@ -96,7 +107,7 @@ public class FormServiceTest {
   public ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
 
   @Rule
-  public RuleChain ruleChain = RuleChain.outerRule(bootstrapRule).around(engineRule).around(testRule);
+  public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testRule);
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -209,7 +220,7 @@ public class FormServiceTest {
   @Test
   public void testTaskFormPropertyDefaultsAndFormRendering() {
 
-    final String deploymentId = testRule.deploy("org/camunda/bpm/engine/test/api/form/FormsProcess.bpmn20.xml", 
+    final String deploymentId = testRule.deploy("org/camunda/bpm/engine/test/api/form/FormsProcess.bpmn20.xml",
       "org/camunda/bpm/engine/test/api/form/start.form",
       "org/camunda/bpm/engine/test/api/form/task.form")
       .getId();
@@ -225,12 +236,12 @@ public class FormServiceTest {
     Object renderedStartForm = formService.getRenderedStartForm(procDefId, "juel");
     assertEquals("start form content", renderedStartForm);
 
-    Map<String, String> properties = new HashMap<String, String>();
+    Map<String, String> properties = new HashMap<>();
     properties.put("room", "5b");
     properties.put("speaker", "Mike");
     String processInstanceId = formService.submitStartFormData(procDefId, properties).getId();
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("room", "5b");
     expectedVariables.put("speaker", "Mike");
 
@@ -247,11 +258,11 @@ public class FormServiceTest {
 
     assertEquals("Mike is speaking in room 5b", formService.getRenderedTaskForm(taskId, "juel"));
 
-    properties = new HashMap<String, String>();
+    properties = new HashMap<>();
     properties.put("room", "3f");
     formService.submitTaskFormData(taskId, properties);
 
-    expectedVariables = new HashMap<String, Object>();
+    expectedVariables = new HashMap<>();
     expectedVariables.put("room", "3f");
     expectedVariables.put("speaker", "Mike");
 
@@ -262,7 +273,7 @@ public class FormServiceTest {
   @Deployment
   @Test
   public void testFormPropertyHandlingDeprecated() {
-    Map<String, String> properties = new HashMap<String, String>();
+    Map<String, String> properties = new HashMap<>();
     properties.put("room", "5b"); // default
     properties.put("speaker", "Mike"); // variable name mapping
     properties.put("duration", "45"); // type conversion
@@ -271,7 +282,7 @@ public class FormServiceTest {
     String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
     String processInstanceId = formService.submitStartFormData(procDefId, properties).getId();
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("room", "5b");
     expectedVariables.put("SpeakerName", "Mike");
     expectedVariables.put("duration", new Long(45));
@@ -318,7 +329,7 @@ public class FormServiceTest {
     }
 
     try {
-      properties = new HashMap<String, String>();
+      properties = new HashMap<>();
       properties.put("speaker", "its not allowed to update speaker!");
       formService.submitTaskFormData(taskId, properties);
       fail("expected exception about a non writable form property 'speaker'");
@@ -326,11 +337,11 @@ public class FormServiceTest {
       // OK
     }
 
-    properties = new HashMap<String, String>();
+    properties = new HashMap<>();
     properties.put("street", "rubensstraat");
     formService.submitTaskFormData(taskId, properties);
 
-    expectedVariables = new HashMap<String, Object>();
+    expectedVariables = new HashMap<>();
     expectedVariables.put("room", "5b");
     expectedVariables.put("SpeakerName", "Mike");
     expectedVariables.put("duration", new Long(45));
@@ -345,7 +356,7 @@ public class FormServiceTest {
   @Deployment
   @Test
   public void testFormPropertyHandling() {
-    Map<String, Object> properties = new HashMap<String, Object>();
+    Map<String, Object> properties = new HashMap<>();
     properties.put("room", "5b"); // default
     properties.put("speaker", "Mike"); // variable name mapping
     properties.put("duration", 45L); // type conversion
@@ -354,7 +365,7 @@ public class FormServiceTest {
     String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
     String processInstanceId = formService.submitStartForm(procDefId, properties).getId();
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("room", "5b");
     expectedVariables.put("SpeakerName", "Mike");
     expectedVariables.put("duration", new Long(45));
@@ -401,7 +412,7 @@ public class FormServiceTest {
     }
 
     try {
-      properties = new HashMap<String, Object>();
+      properties = new HashMap<>();
       properties.put("speaker", "its not allowed to update speaker!");
       formService.submitTaskForm(taskId, properties);
       fail("expected exception about a non writable form property 'speaker'");
@@ -409,11 +420,11 @@ public class FormServiceTest {
       // OK
     }
 
-    properties = new HashMap<String, Object>();
+    properties = new HashMap<>();
     properties.put("street", "rubensstraat");
     formService.submitTaskForm(taskId, properties);
 
-    expectedVariables = new HashMap<String, Object>();
+    expectedVariables = new HashMap<>();
     expectedVariables.put("room", "5b");
     expectedVariables.put("SpeakerName", "Mike");
     expectedVariables.put("duration", new Long(45));
@@ -457,7 +468,7 @@ public class FormServiceTest {
     assertEquals("enum", property.getType().getName());
     Map<String, String> values = (Map<String, String>) property.getType().getInformation("values");
 
-    Map<String, String> expectedValues = new LinkedHashMap<String, String>();
+    Map<String, String> expectedValues = new LinkedHashMap<>();
     expectedValues.put("left", "Go Left");
     expectedValues.put("right", "Go Right");
     expectedValues.put("up", "Go Up");
@@ -487,7 +498,7 @@ public class FormServiceTest {
   @Deployment
   @Test
   public void testSubmitStartFormDataWithBusinessKey() {
-    Map<String, String> properties = new HashMap<String, String>();
+    Map<String, String> properties = new HashMap<>();
     properties.put("duration", "45");
     properties.put("speaker", "Mike");
     String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
@@ -615,7 +626,7 @@ public class FormServiceTest {
   @Deployment
   @Test
   public void testSubmitStartFormWithBusinessKey() {
-    Map<String, Object> properties = new HashMap<String, Object>();
+    Map<String, Object> properties = new HashMap<>();
     properties.put("duration", 45L);
     properties.put("speaker", "Mike");
     String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
@@ -632,7 +643,7 @@ public class FormServiceTest {
   @Deployment
   @Test
   public void testSubmitStartFormWithoutProperties() {
-    Map<String, Object> properties = new HashMap<String, Object>();
+    Map<String, Object> properties = new HashMap<>();
     properties.put("duration", 45L);
     properties.put("speaker", "Mike");
     String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
@@ -788,7 +799,7 @@ public class FormServiceTest {
   @Test
   public void testGetTaskFormVariables() {
 
-    Map<String, Object> processVars = new HashMap<String, Object>();
+    Map<String, Object> processVars = new HashMap<>();
     processVars.put("someString", "initialValue");
     processVars.put("initialBooleanVariable", true);
     processVars.put("initialLongVariable", 1l);
@@ -863,7 +874,7 @@ public class FormServiceTest {
   @Test
   public void testGetTaskFormVariables_StandaloneTask() {
 
-    Map<String, Object> processVars = new HashMap<String, Object>();
+    Map<String, Object> processVars = new HashMap<>();
     processVars.put("someString", "initialValue");
     processVars.put("initialBooleanVariable", true);
     processVars.put("initialLongVariable", 1l);
@@ -932,7 +943,7 @@ public class FormServiceTest {
     ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
 
     // when a start form is submitted with an object variable
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("var", new ArrayList<String>());
     ProcessInstance processInstance = formService.submitStartForm(processDefinition.getId(), variables);
 
@@ -960,7 +971,7 @@ public class FormServiceTest {
     Task task = taskService.createTaskQuery().singleResult();
     assertNotNull(task);
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("var", new ArrayList<String>());
     formService.submitTaskForm(task.getId(), variables);
 
@@ -973,7 +984,173 @@ public class FormServiceTest {
     if(processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_FULL) {
       assertEquals(0, historyService.createHistoricDetailQuery().formFields().count());
     }
+  }
 
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/task/TaskServiceTest.testCompleteTaskWithVariablesInReturn.bpmn20.xml" })
+  @Test
+  public void testSubmitTaskFormWithVariablesInReturn() {
+    String processVarName = "processVar";
+    String processVarValue = "processVarValue";
+
+    String taskVarName = "taskVar";
+    String taskVarValue = "taskVarValue";
+
+    Map<String, Object> variables = new HashMap<>();
+    variables.put(processVarName, processVarValue);
+
+    runtimeService.startProcessInstanceByKey("TaskServiceTest.testCompleteTaskWithVariablesInReturn", variables);
+
+    Task firstUserTask = taskService.createTaskQuery().taskName("First User Task").singleResult();
+    taskService.setVariable(firstUserTask.getId(), "x", 1);
+
+    Map<String, Object> additionalVariables = new HashMap<>();
+    additionalVariables.put(taskVarName, taskVarValue);
+
+    // After completion of firstUserTask a script Task sets 'x' = 5
+    VariableMap vars = formService.submitTaskFormWithVariablesInReturn(firstUserTask.getId(), additionalVariables, true);
+    assertEquals(3, vars.size());
+    assertEquals(5, vars.get("x"));
+    assertEquals(ValueType.INTEGER, vars.getValueTyped("x").getType());
+    assertEquals(processVarValue, vars.get(processVarName));
+    assertEquals(ValueType.STRING, vars.getValueTyped(processVarName).getType());
+    assertEquals(taskVarValue, vars.get(taskVarName));
+
+    additionalVariables = new HashMap<>();
+    additionalVariables.put("x", 7);
+    Task secondUserTask = taskService.createTaskQuery().taskName("Second User Task").singleResult();
+    vars = formService.submitTaskFormWithVariablesInReturn(secondUserTask.getId(), additionalVariables, true);
+    assertEquals(3, vars.size());
+    assertEquals(7, vars.get("x"));
+    assertEquals(processVarValue, vars.get(processVarName));
+    assertEquals(taskVarValue, vars.get(taskVarName));
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/twoParallelTasksProcess.bpmn20.xml" })
+  @Test
+  public void testSubmitTaskFormWithVariablesInReturnParallel() {
+    String processVarName = "processVar";
+    String processVarValue = "processVarValue";
+
+    String task1VarName = "taskVar1";
+    String task2VarName = "taskVar2";
+    String task1VarValue = "taskVarValue1";
+    String task2VarValue = "taskVarValue2";
+
+    String additionalVar = "additionalVar";
+    String additionalVarValue = "additionalVarValue";
+
+    Map<String, Object> variables = new HashMap<>();
+    variables.put(processVarName, processVarValue);
+    runtimeService.startProcessInstanceByKey("twoParallelTasksProcess", variables);
+
+    Task firstTask = taskService.createTaskQuery().taskName("First Task").singleResult();
+    taskService.setVariable(firstTask.getId(), task1VarName, task1VarValue);
+    Task secondTask = taskService.createTaskQuery().taskName("Second Task").singleResult();
+    taskService.setVariable(secondTask.getId(), task2VarName, task2VarValue);
+
+    Map<String, Object> vars = formService.submitTaskFormWithVariablesInReturn(firstTask.getId(), null, true);
+
+    assertEquals(3, vars.size());
+    assertEquals(processVarValue, vars.get(processVarName));
+    assertEquals(task1VarValue, vars.get(task1VarName));
+    assertEquals(task2VarValue, vars.get(task2VarName));
+
+    Map<String, Object> additionalVariables = new HashMap<>();
+    additionalVariables.put(additionalVar, additionalVarValue);
+
+    vars = formService.submitTaskFormWithVariablesInReturn(secondTask.getId(), additionalVariables, true);
+    assertEquals(4, vars.size());
+    assertEquals(processVarValue, vars.get(processVarName));
+    assertEquals(task1VarValue, vars.get(task1VarName));
+    assertEquals(task2VarValue, vars.get(task2VarName));
+    assertEquals(additionalVarValue, vars.get(additionalVar));
+  }
+
+  /**
+   * Tests that the variablesInReturn logic is not applied
+   * when we call the regular complete API. This is a performance optimization.
+   * Loading all variables may be expensive.
+   */
+  @Test
+  public void testSubmitTaskFormAndDoNotDeserializeVariables()
+  {
+    // given
+    BpmnModelInstance process = Bpmn.createExecutableProcess("process")
+      .startEvent()
+      .subProcess()
+      .embeddedSubProcess()
+      .startEvent()
+      .userTask("task1")
+      .userTask("task2")
+      .endEvent()
+      .subProcessDone()
+      .endEvent()
+      .done();
+
+    testRule.deploy(process);
+
+    runtimeService.startProcessInstanceByKey("process", Variables.putValue("var", "val"));
+
+    final Task task = taskService.createTaskQuery().singleResult();
+
+    // when
+    final boolean hasLoadedAnyVariables =
+      processEngineConfiguration.getCommandExecutorTxRequired().execute(new Command<Boolean>() {
+
+        @Override
+        public Boolean execute(CommandContext commandContext) {
+          formService.submitTaskForm(task.getId(), null);
+          return !commandContext.getDbEntityManager().getCachedEntitiesByType(VariableInstanceEntity.class).isEmpty();
+        }
+      });
+
+    // then
+    assertThat(hasLoadedAnyVariables).isFalse();
+  }
+
+
+
+  @Test
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/twoTasksProcess.bpmn20.xml")
+  public void testSubmitTaskFormWithVarialbesInReturnShouldDeserializeObjectValue()
+  {
+    // given
+    ObjectValue value = Variables.objectValue("value").create();
+    VariableMap variables = Variables.createVariables().putValue("var", value);
+
+    runtimeService.startProcessInstanceByKey("twoTasksProcess", variables);
+
+    Task task = taskService.createTaskQuery().singleResult();
+
+    // when
+    VariableMap result = formService.submitTaskFormWithVariablesInReturn(task.getId(), null, true);
+
+    // then
+    ObjectValue returnedValue = result.getValueTyped("var");
+    assertThat(returnedValue.isDeserialized()).isTrue();
+    assertThat(returnedValue.getValue()).isEqualTo("value");
+  }
+
+  @Test
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/twoTasksProcess.bpmn20.xml")
+  public void testSubmitTaskFormWithVarialbesInReturnShouldNotDeserializeObjectValue()
+  {
+    // given
+    ObjectValue value = Variables.objectValue("value").create();
+    VariableMap variables = Variables.createVariables().putValue("var", value);
+
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("twoTasksProcess", variables);
+    String serializedValue = ((ObjectValue) runtimeService.getVariableTyped(instance.getId(), "var")).getValueSerialized();
+
+    Task task = taskService.createTaskQuery().singleResult();
+
+    // when
+    VariableMap result = formService.submitTaskFormWithVariablesInReturn(task.getId(), null, false);
+
+    // then
+    ObjectValue returnedValue = result.getValueTyped("var");
+    assertThat(returnedValue.isDeserialized()).isFalse();
+    assertThat(returnedValue.getValueSerialized()).isEqualTo(serializedValue);
   }
 
   @Deployment
@@ -1005,7 +1182,7 @@ public class FormServiceTest {
     List<FormField> formFields = formData.getFormFields();
     assertEquals(3, formFields.size());
 
-    List<String> formFieldIds = new ArrayList<String>();
+    List<String> formFieldIds = new ArrayList<>();
     for (FormField field : formFields) {
       assertNull(field.getLabel());
       formFieldIds.add(field.getId());
@@ -1042,7 +1219,7 @@ public class FormServiceTest {
     List<FormField> formFields = formData.getFormFields();
     assertEquals(3, formFields.size());
 
-    List<String> formFieldIds = new ArrayList<String>();
+    List<String> formFieldIds = new ArrayList<>();
     for (FormField field : formFields) {
       assertNull(field.getLabel());
       formFieldIds.add(field.getId());
@@ -1085,7 +1262,7 @@ public class FormServiceTest {
     assertEquals("org/camunda/bpm/engine/test/api/form/util/request.form", formService.getStartFormData(processDefinitionId).getFormKey());
 
     // Define variables that would be filled in through the form
-    Map<String, String> formProperties = new HashMap<String, String>();
+    Map<String, String> formProperties = new HashMap<>();
     formProperties.put("employeeName", "kermit");
     formProperties.put("numberOfDays", "4");
     formProperties.put("vacationMotivation", "I'm tired");

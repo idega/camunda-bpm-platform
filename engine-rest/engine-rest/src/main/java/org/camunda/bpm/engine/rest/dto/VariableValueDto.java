@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -153,6 +157,22 @@ public class VariableValueDto {
     return result;
   }
 
+  public static Map<String, VariableValueDto> fromMap(VariableMap variables)
+  {
+    return fromMap(variables, false);
+  }
+
+  public static Map<String, VariableValueDto> fromMap(VariableMap variables, boolean preferSerializedValue)
+  {
+    Map<String, VariableValueDto> result = new HashMap<>();
+    for (String variableName : variables.keySet()) {
+      VariableValueDto valueDto = VariableValueDto.fromTypedValue(variables.getValueTyped(variableName), preferSerializedValue);
+      result.put(variableName, valueDto);
+    }
+
+    return result;
+  }
+
   public static VariableValueDto fromTypedValue(TypedValue typedValue) {
     VariableValueDto dto = new VariableValueDto();
     fromTypedValue(dto, typedValue);
@@ -206,14 +226,6 @@ public class VariableValueDto {
     return name.substring(0, 1).toLowerCase() + name.substring(1);
   }
 
-  public static Map<String, VariableValueDto> fromVariableMap(VariableMap variables) {
-    Map<String, VariableValueDto> result = new HashMap<String, VariableValueDto>();
-    for(String name: variables.keySet()) {
-      result.put(name, fromTypedValue(variables.getValueTyped(name)));
-    }
-    return result;
-  }
-
   public static VariableValueDto fromFormPart(String type, FormPart binaryDataFormPart) {
     VariableValueDto dto = new VariableValueDto();
 
@@ -227,7 +239,7 @@ public class VariableValueDto {
         contentType = MediaType.APPLICATION_OCTET_STREAM;
       }
 
-      dto.valueInfo = new HashMap<String, Object>();
+      dto.valueInfo = new HashMap<>();
       dto.valueInfo.put(FileValueType.VALUE_INFO_FILE_NAME, binaryDataFormPart.getFileName());
       MimeType mimeType = null;
       try {

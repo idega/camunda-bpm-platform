@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,14 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.batch.history;
 
 import org.camunda.bpm.engine.BadUserRequestException;
-import org.camunda.bpm.engine.impl.batch.BatchEntity;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
 
 public class DeleteHistoricBatchCmd implements Command<Object> {
@@ -36,6 +40,8 @@ public class DeleteHistoricBatchCmd implements Command<Object> {
 
     checkAccess(commandContext, historicBatch);
 
+    writeUserOperationLog(commandContext);
+
     historicBatch.delete();
 
     return null;
@@ -45,6 +51,11 @@ public class DeleteHistoricBatchCmd implements Command<Object> {
     for(CommandChecker checker : commandContext.getProcessEngineConfiguration().getCommandCheckers()) {
       checker.checkDeleteHistoricBatch(batch);
     }
+  }
+
+  protected void writeUserOperationLog(CommandContext commandContext) {
+    commandContext.getOperationLogManager()
+      .logBatchOperation(UserOperationLogEntry.OPERATION_TYPE_DELETE_HISTORY, batchId, PropertyChange.EMPTY_CHANGE);
   }
 
 }

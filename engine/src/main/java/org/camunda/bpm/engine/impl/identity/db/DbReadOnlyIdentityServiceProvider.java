@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +16,9 @@
  */
 package org.camunda.bpm.engine.impl.identity.db;
 
+import static org.camunda.bpm.engine.impl.util.EncryptionUtil.saltPassword;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -36,8 +43,6 @@ import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
-
-import static org.camunda.bpm.engine.impl.util.EncryptionUtil.saltPassword;
 
 /**
  * <p>Read only implementation of DB-backed identity service</p>
@@ -77,7 +82,6 @@ public class DbReadOnlyIdentityServiceProvider extends AbstractManager implement
     return getDbEntityManager().selectList("selectUserByQueryCriteria", query);
   }
 
-  @SuppressWarnings("unchecked")
   public List<User> findUserByNativeQuery(Map<String, Object> parameterMap, int firstResult, int maxResults) {
     return getDbEntityManager().selectListWithRawParameter("selectUserByNativeQuery", parameterMap, firstResult, maxResults);
   }
@@ -150,6 +154,26 @@ public class DbReadOnlyIdentityServiceProvider extends AbstractManager implement
   public List<Tenant> findTenantByQueryCriteria(DbTenantQueryImpl query) {
     configureQuery(query, Resources.TENANT);
     return getDbEntityManager().selectList("selectTenantByQueryCriteria", query);
+  }
+  
+  //memberships //////////////////////////////////////////
+  protected boolean existsMembership(String userId, String groupId) {
+    Map<String, String> key = new HashMap<>();
+    key.put("userId", userId);
+    key.put("groupId", groupId);
+    return ((Long) getDbEntityManager().selectOne("selectMembershipCount", key)) > 0;
+  }
+  
+  protected boolean existsTenantMembership(String tenantId, String userId, String groupId) {
+    Map<String, String> key = new HashMap<>();
+    key.put("tenantId", tenantId);
+    if (userId != null) {
+      key.put("userId", userId);
+    }
+    if (groupId != null) {
+      key.put("groupId", groupId);
+    }
+    return ((Long) getDbEntityManager().selectOne("selectTenantMembershipCount", key)) > 0;
   }
 
   //authorizations ////////////////////////////////////////////////////

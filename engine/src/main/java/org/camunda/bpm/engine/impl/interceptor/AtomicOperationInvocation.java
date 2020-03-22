@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,11 +54,12 @@ public class AtomicOperationInvocation {
     this.performAsync = performAsync;
   }
 
-  public void execute(BpmnStackTrace stackTrace) {
+  public void execute(BpmnStackTrace stackTrace, ProcessDataContext processDataContext) {
 
     if(operation != PvmAtomicOperation.ACTIVITY_START_CANCEL_SCOPE
        && operation != PvmAtomicOperation.ACTIVITY_START_INTERRUPT_SCOPE
-       && operation != PvmAtomicOperation.ACTIVITY_START_CONCURRENT) {
+       && operation != PvmAtomicOperation.ACTIVITY_START_CONCURRENT
+       && operation != PvmAtomicOperation.DELETE_CASCADE) {
       // execution might be replaced in the meantime:
       ExecutionEntity replacedBy = execution.getReplacedBy();
       if(replacedBy != null) {
@@ -84,6 +89,9 @@ public class AtomicOperationInvocation {
     activityName = execution.getCurrentActivityName();
     stackTrace.add(this);
 
+
+    boolean popProcessDataContextSection = processDataContext.pushSection(execution);
+
     try {
       Context.setExecutionContext(execution);
       if(!performAsync) {
@@ -92,6 +100,9 @@ public class AtomicOperationInvocation {
       }
       else {
         execution.scheduleAtomicOperationAsync(this);
+      }
+      if (popProcessDataContextSection) {
+        processDataContext.popSection();
       }
     } finally {
       Context.removeExecutionContext();

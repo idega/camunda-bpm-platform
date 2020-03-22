@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +20,8 @@ import java.util.Date;
 import org.camunda.bpm.engine.history.JobState;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.util.ExceptionUtil;
+import org.camunda.bpm.engine.impl.util.StringUtil;
 
 /**
  * @author Roman Smirnov
@@ -49,11 +53,15 @@ public class HistoricJobLogEvent extends HistoryEvent {
 
   protected String activityId;
 
+  protected String failedActivityId;
+
   protected String deploymentId;
 
   protected int state;
 
   protected String tenantId;
+
+  protected String hostname;
 
   public Date getTimestamp() {
     return timestamp;
@@ -104,11 +112,7 @@ public class HistoricJobLogEvent extends HistoryEvent {
     //   relevant for relational history databases that follow our schema restrictions;
     //   a similar problem exists in JobEntity#setExceptionMessage where truncation may not be required for custom
     //   persistence implementations
-    if(jobExceptionMessage != null && jobExceptionMessage.length() > JobEntity.MAX_EXCEPTION_MESSAGE_LENGTH) {
-      this.jobExceptionMessage = jobExceptionMessage.substring(0, JobEntity.MAX_EXCEPTION_MESSAGE_LENGTH);
-    } else {
-      this.jobExceptionMessage = jobExceptionMessage;
-    }
+    this.jobExceptionMessage = StringUtil.trimToMaximumLengthAllowed(jobExceptionMessage);
   }
 
   public String getExceptionByteArrayId() {
@@ -191,6 +195,14 @@ public class HistoricJobLogEvent extends HistoryEvent {
     this.tenantId = tenantId;
   }
 
+  public String getHostname() {
+    return hostname;
+  }
+
+  public void setHostname(String hostname) {
+    this.hostname = hostname;
+  }
+
   public boolean isCreationLog() {
     return state == JobState.CREATED.getStateCode();
   }
@@ -205,6 +217,22 @@ public class HistoricJobLogEvent extends HistoryEvent {
 
   public boolean isDeletionLog() {
     return state == JobState.DELETED.getStateCode();
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+  }
+
+  public String getFailedActivityId() {
+    return failedActivityId;
+  }
+
+  public void setFailedActivityId(String failedActivityId) {
+    this.failedActivityId = failedActivityId;
   }
 
 }

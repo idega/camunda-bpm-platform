@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +20,7 @@ import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmLogger;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
+import org.camunda.bpm.engine.impl.pvm.runtime.ActivityInstanceState;
 import org.camunda.bpm.engine.impl.pvm.runtime.CompensationBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
@@ -53,15 +58,25 @@ public abstract class PvmAtomicOperationActivityInstanceEnd extends AbstractPvmE
 
 
     }
+    execution.setTransition(null);
 
     return execution;
 
   }
 
   @Override
+  protected void eventNotificationsFailed(PvmExecutionImpl execution, Exception e) {
+    execution.activityInstanceEndListenerFailure();
+    super.eventNotificationsFailed(execution, e);
+  }
+
+  @Override
   protected boolean isSkipNotifyListeners(PvmExecutionImpl execution) {
     // listeners are skipped if this execution is not part of an activity instance.
-    return execution.getActivityInstanceId() == null;
+    // or if the end listeners for this activity instance were triggered before already and failed.
+    return execution.hasFailedOnEndListeners() ||
+        execution.getActivityInstanceId() == null;
   }
+
 
 }

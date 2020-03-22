@@ -1,15 +1,19 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test;
 
 import java.io.FileNotFoundException;
@@ -39,6 +43,7 @@ import org.junit.Assume;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
+
 
 /**
  * Convenience for ProcessEngine and services initialization in the form of a
@@ -96,7 +101,7 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
   protected String configurationResource = "camunda.cfg.xml";
   protected String configurationResourceCompat = "activiti.cfg.xml";
   protected String deploymentId = null;
-  protected List<String> additionalDeployments = new ArrayList<String>();
+  protected List<String> additionalDeployments = new ArrayList<>();
 
   protected boolean ensureCleanAfterTest = false;
 
@@ -157,11 +162,13 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
     initializeServices();
 
     final boolean hasRequiredHistoryLevel = TestHelper.annotationRequiredHistoryLevelCheck(processEngine, description);
+    final boolean runsWithRequiredDatabase = TestHelper.annotationRequiredDatabaseCheck(processEngine, description);
     return new Statement() {
 
       @Override
       public void evaluate() throws Throwable {
         Assume.assumeTrue("ignored because the current history level is too low", hasRequiredHistoryLevel);
+        Assume.assumeTrue("ignored because the database doesn't match the required ones", runsWithRequiredDatabase);
         ProcessEngineRule.super.apply(base, description).evaluate();
       }
     };

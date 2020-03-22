@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +16,18 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.camunda.bpm.engine.history.UserOperationLogEntry.ENTITY_TYPE_TASK;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.history.UserOperationLogEntry.OPERATION_TYPE_CLAIM;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_USER_OPERATION_ANNOTATION;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_USER_OPERATION_LOG_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -30,9 +36,13 @@ import static org.mockito.Mockito.when;
 import java.util.Date;
 import java.util.List;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.EntityTypes;
+import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
@@ -45,8 +55,8 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  * @author Danny Gräf
@@ -60,7 +70,17 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
 
   protected static final String USER_OPERATION_LOG_COUNT_RESOURCE_URL = USER_OPERATION_LOG_RESOURCE_URL + "/count";
 
+  protected static final String USER_OPERATION_LOG_ANNOTATION = USER_OPERATION_LOG_RESOURCE_URL + "/{operationId}";
+
+  protected static final String USER_OPERATION_LOG_SET_ANNOTATION_RESOURCE_URL =
+      USER_OPERATION_LOG_ANNOTATION + "/set-annotation";
+
+  protected static final String USER_OPERATION_LOG_CLEAR_ANNOTATION_RESOURCE_URL =
+      USER_OPERATION_LOG_ANNOTATION + "/clear-annotation";
+
   protected UserOperationLogQuery queryMock;
+
+  protected HistoryService historyService;
 
   @Before
   public void setUpMock() {
@@ -69,7 +89,10 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
     when(queryMock.list()).thenReturn(entries);
     when(queryMock.listPage(anyInt(), anyInt())).thenReturn(entries);
     when(queryMock.count()).thenReturn((long) entries.size());
-    when(processEngine.getHistoryService().createUserOperationLogQuery()).thenReturn(queryMock);
+
+    historyService = mock(HistoryService.class);
+    when(processEngine.getHistoryService()).thenReturn(historyService);
+    when(historyService.createUserOperationLogQuery()).thenReturn(queryMock);
   }
 
   @Test
@@ -100,8 +123,10 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
     verify(queryMock, never()).batchId(anyString());
     verify(queryMock, never()).userId(anyString());
     verify(queryMock, never()).operationId(anyString());
+    verify(queryMock, never()).externalTaskId(anyString());
     verify(queryMock, never()).operationType(anyString());
     verify(queryMock, never()).entityType(anyString());
+    verify(queryMock, never()).category(anyString());
     verify(queryMock, never()).property(anyString());
     verify(queryMock, never()).afterTimestamp(any(Date.class));
     verify(queryMock, never()).beforeTimestamp(any(Date.class));
@@ -128,9 +153,12 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
         .queryParam("batchId", MockProvider.EXAMPLE_BATCH_ID)
         .queryParam("userId", "icke")
         .queryParam("operationId", "5")
+        .queryParam("externalTaskId", "1")
         .queryParam("operationType", OPERATION_TYPE_CLAIM)
         .queryParam("entityType", EntityTypes.TASK)
         .queryParam("entityTypeIn", EntityTypes.TASK + "," + EntityTypes.VARIABLE)
+        .queryParam("category", UserOperationLogEntry.CATEGORY_TASK_WORKER)
+        .queryParam("categoryIn", UserOperationLogEntry.CATEGORY_TASK_WORKER + "," + UserOperationLogEntry.CATEGORY_OPERATOR)
         .queryParam("property", "owner")
         .then().expect().statusCode(Status.OK.getStatusCode())
         .when().get(USER_OPERATION_LOG_RESOURCE_URL);
@@ -149,9 +177,12 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
     verify(queryMock).batchId(MockProvider.EXAMPLE_BATCH_ID);
     verify(queryMock).userId("icke");
     verify(queryMock).operationId("5");
+    verify(queryMock).externalTaskId("1");
     verify(queryMock).operationType(OPERATION_TYPE_CLAIM);
     verify(queryMock).entityType(EntityTypes.TASK);
     verify(queryMock).entityTypeIn(EntityTypes.TASK, EntityTypes.VARIABLE);
+    verify(queryMock).category(UserOperationLogEntry.CATEGORY_TASK_WORKER);
+    verify(queryMock).categoryIn(UserOperationLogEntry.CATEGORY_TASK_WORKER, UserOperationLogEntry.CATEGORY_OPERATOR);
     verify(queryMock).property("owner");
     verify(queryMock).list();
 
@@ -255,6 +286,64 @@ public class UserOperationLogRestServiceQueryTest extends AbstractRestServiceTes
         .expect().statusCode(Status.OK.getStatusCode())
         .when().get(USER_OPERATION_LOG_RESOURCE_URL);
     verify(queryMock).listPage(7, Integer.MAX_VALUE);
+  }
+
+  @Test
+  public void shouldSetAnnotation() {
+    given()
+        .pathParam("operationId", EXAMPLE_USER_OPERATION_LOG_ID)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body("{ \"annotation\": \"" + EXAMPLE_USER_OPERATION_ANNOTATION + "\" }")
+        .expect()
+          .statusCode(Status.NO_CONTENT.getStatusCode())
+        .when()
+          .put(USER_OPERATION_LOG_SET_ANNOTATION_RESOURCE_URL);
+
+    verify(historyService)
+        .setAnnotationForOperationLogById(EXAMPLE_USER_OPERATION_LOG_ID, EXAMPLE_USER_OPERATION_ANNOTATION);
+  }
+
+  @Test
+  public void shouldThrowExceptionWhenSetAnnotation() {
+    doThrow(NotValidException.class)
+        .when(historyService)
+        .setAnnotationForOperationLogById(anyString(), anyString());
+
+    given()
+        .pathParam("operationId", EXAMPLE_USER_OPERATION_LOG_ID)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body("{ \"annotation\": \"" + EXAMPLE_USER_OPERATION_ANNOTATION + "\" }")
+        .expect()
+          .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when()
+          .put(USER_OPERATION_LOG_SET_ANNOTATION_RESOURCE_URL);
+  }
+
+  @Test
+  public void shouldClearAnnotation() {
+    given()
+        .pathParam("operationId", EXAMPLE_USER_OPERATION_LOG_ID)
+        .expect()
+          .statusCode(Status.NO_CONTENT.getStatusCode())
+        .when()
+          .put(USER_OPERATION_LOG_CLEAR_ANNOTATION_RESOURCE_URL);
+
+    verify(historyService)
+        .clearAnnotationForOperationLogById(EXAMPLE_USER_OPERATION_LOG_ID);
+  }
+
+  @Test
+  public void shouldThrowExceptionWhenClearAnnotation() {
+    doThrow(BadUserRequestException.class)
+        .when(historyService)
+        .clearAnnotationForOperationLogById(anyString());
+
+    Response response = given()
+        .pathParam("operationId", EXAMPLE_USER_OPERATION_LOG_ID)
+        .expect()
+          .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when()
+          .put(USER_OPERATION_LOG_CLEAR_ANNOTATION_RESOURCE_URL);
   }
 
 }

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl;
 
 
@@ -21,6 +24,8 @@ import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.CompositePermissionCheck;
+import org.camunda.bpm.engine.impl.db.PermissionCheck;
 import org.camunda.bpm.engine.impl.event.EventType;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -75,11 +80,15 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
   protected String[] tenantIds;
   protected boolean includeDefinitionsWithoutTenantId = false;
 
+  protected boolean isVersionTagSet = false;
   protected String versionTag;
   protected String versionTagLike;
 
   protected boolean isStartableInTasklist = false;
   protected boolean isNotStartableInTasklist = false;
+  protected boolean startablePermissionCheck = false;
+  // for internal use
+  protected List<PermissionCheck> processDefinitionCreatePermissionChecks = new ArrayList<PermissionCheck>();
 
   public ProcessDefinitionQueryImpl() {
   }
@@ -251,6 +260,7 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
   public ProcessDefinitionQuery versionTag(String versionTag) {
     ensureNotNull("versionTag", versionTag);
     this.versionTag = versionTag;
+    this.isVersionTagSet = true;
 
     return this;
   }
@@ -262,6 +272,13 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
     return this;
   }
 
+  public ProcessDefinitionQuery withoutVersionTag() {
+    this.isVersionTagSet = true;
+    this.versionTag = null;
+
+    return this;
+  }
+
   public ProcessDefinitionQuery startableInTasklist() {
     this.isStartableInTasklist = true;
     return this;
@@ -269,6 +286,11 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   public ProcessDefinitionQuery notStartableInTasklist() {
     this.isNotStartableInTasklist = true;
+    return this;
+  }
+
+  public ProcessDefinitionQuery startablePermissionCheck() {
+    this.startablePermissionCheck = true;
     return this;
   }
 
@@ -437,6 +459,22 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   public boolean isNotStartableInTasklist() {
     return isNotStartableInTasklist;
+  }
+
+  public boolean isStartablePermissionCheck() {
+    return startablePermissionCheck;
+  }
+
+  public void setProcessDefinitionCreatePermissionChecks(List<PermissionCheck> processDefinitionCreatePermissionChecks) {
+    this.processDefinitionCreatePermissionChecks = processDefinitionCreatePermissionChecks;
+  }
+
+  public List<PermissionCheck> getProcessDefinitionCreatePermissionChecks() {
+    return processDefinitionCreatePermissionChecks;
+  }
+
+  public void addProcessDefinitionCreatePermissionCheck(CompositePermissionCheck processDefinitionCreatePermissionCheck) {
+    processDefinitionCreatePermissionChecks.addAll(processDefinitionCreatePermissionCheck.getAllPermissionChecks());
   }
 
   public ProcessDefinitionQueryImpl startableByUser(String userId) {

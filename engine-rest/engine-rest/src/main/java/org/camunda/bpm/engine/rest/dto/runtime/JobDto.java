@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,11 +29,13 @@ public class JobDto {
   protected String processDefinitionKey;
   protected String executionId;
   protected String exceptionMessage;
+  protected String failedActivityId;
   protected int retries;
   protected Date dueDate;
   protected boolean suspended;
   protected long priority;
   protected String tenantId;
+  protected Date createTime;
 
   public static JobDto fromJob(Job job) {
     JobDto dto = new JobDto();
@@ -40,11 +46,13 @@ public class JobDto {
     dto.processDefinitionKey = job.getProcessDefinitionKey();
     dto.executionId = job.getExecutionId();
     dto.exceptionMessage = job.getExceptionMessage();
+    dto.failedActivityId = job.getFailedActivityId();
     dto.retries = job.getRetries();
     dto.dueDate = job.getDuedate();
     dto.suspended = job.isSuspended();
     dto.priority = job.getPriority();
     dto.tenantId = job.getTenantId();
+    dto.createTime = job.getCreateTime();
 
     return dto;
   }
@@ -67,6 +75,10 @@ public class JobDto {
 
   public String getExceptionMessage() {
     return exceptionMessage;
+  }
+
+  public String getFailedActivityId() {
+    return failedActivityId;
   }
 
   public int getRetries() {
@@ -95,6 +107,10 @@ public class JobDto {
 
   public String getTenantId() {
     return tenantId;
+  }
+
+  public Date getCreateTime() {
+    return createTime;
   }
 
 }

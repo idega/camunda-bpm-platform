@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,11 +27,19 @@ import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.batch.BatchStatistics;
 import org.camunda.bpm.engine.batch.history.HistoricBatch;
 import org.camunda.bpm.engine.externaltask.ExternalTask;
+import org.camunda.bpm.engine.history.HistoricActivityInstance;
+import org.camunda.bpm.engine.history.HistoricCaseActivityInstance;
+import org.camunda.bpm.engine.history.HistoricDecisionInstance;
+import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLog;
+import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.history.HistoricTaskInstance;
+import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
+import org.camunda.bpm.engine.management.SchemaLogEntry;
 import org.camunda.bpm.engine.query.Query;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
@@ -415,6 +427,15 @@ public class TestOrderingUtil {
     });
   }
 
+  public static NullTolerantComparator<HistoricJobLog> historicJobLogByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricJobLog, String>() {
+      @Override
+      public String getProperty(HistoricJobLog obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
   // jobs
 
   public static NullTolerantComparator<Job> jobByPriority() {
@@ -669,11 +690,86 @@ public class TestOrderingUtil {
     });
   }
 
+  // HISTORIC ENTITIES
+
+  public static NullTolerantComparator<HistoricActivityInstance> historicActivityInstanceByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricActivityInstance, String>() {
+      @Override
+      public String getProperty(HistoricActivityInstance obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricIncident> historicIncidentByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricIncident, String>() {
+      @Override
+      public String getProperty(HistoricIncident obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricDecisionInstance> historicDecisionInstanceByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricDecisionInstance, String>() {
+      @Override
+      public String getProperty(HistoricDecisionInstance obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricDetail> historicDetailByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricDetail, String>() {
+      @Override
+      public String getProperty(HistoricDetail obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricTaskInstance> historicTaskInstanceByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricTaskInstance, String>() {
+      @Override
+      public String getProperty(HistoricTaskInstance obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricVariableInstance> historicVariableInstanceByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricVariableInstance, String>() {
+      @Override
+      public String getProperty(HistoricVariableInstance obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
+  public static NullTolerantComparator<HistoricCaseActivityInstance> historicCaseActivityInstanceByTenantId() {
+    return propertyComparator(new PropertyAccessor<HistoricCaseActivityInstance, String>() {
+      @Override
+      public String getProperty(HistoricCaseActivityInstance obj) {
+        return obj.getTenantId();
+      }
+    });
+  }
+
   public static NullTolerantComparator<HistoricExternalTaskLog> historicExternalTaskLogByTenantId() {
     return propertyComparator(new PropertyAccessor<HistoricExternalTaskLog, String>() {
       @Override
       public String getProperty(HistoricExternalTaskLog obj) {
         return obj.getTenantId();
+      }
+    });
+  }
+
+  // SCHEMA LOG
+  public static NullTolerantComparator<SchemaLogEntry> schemaLogEntryByTimestamp() {
+    return propertyComparator(new PropertyAccessor<SchemaLogEntry, Date>() {
+      @Override
+      public Date getProperty(SchemaLogEntry obj) {
+        return obj.getTimestamp();
       }
     });
   }

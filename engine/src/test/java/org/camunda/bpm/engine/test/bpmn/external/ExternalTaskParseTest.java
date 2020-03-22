@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,14 +16,16 @@
  */
 package org.camunda.bpm.engine.test.bpmn.external;
 
-import org.camunda.bpm.engine.ProcessEngineException;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.camunda.bpm.engine.ParseException;
 import org.camunda.bpm.engine.externaltask.ExternalTask;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.test.Deployment;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * @author Thorben Lindhauer
@@ -35,8 +41,10 @@ public class ExternalTaskParseTest extends PluggableProcessEngineTestCase {
     try {
       deploymentBuilder.deploy();
       fail("exception expected");
-    } catch (ProcessEngineException e) {
+    } catch (ParseException e) {
       assertTextPresent("External tasks must specify a 'topic' attribute in the camunda namespace", e.getMessage());
+      assertThat(e.getResorceReports().get(0).getErrors().size()).isEqualTo(1);
+      assertThat(e.getResorceReports().get(0).getErrors().get(0).getMainElementId()).isEqualTo("externalTask");
     }
   }
 

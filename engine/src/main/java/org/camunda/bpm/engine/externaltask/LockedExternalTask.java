@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,14 +69,19 @@ public interface LockedExternalTask {
   String getActivityInstanceId();
 
   /**
-   * @return the id of the process definition the task's activity belongs to
+   * @return the id of the process definition the tasks activity belongs to
    */
   String getProcessDefinitionId();
 
   /**
-   * @return the key of the process definition the task's activity belongs to
+   * @return the key of the process definition the tasks activity belongs to
    */
   String getProcessDefinitionKey();
+
+  /**
+   * @return the version tag of the process definition the tasks activity belongs to
+   */
+  String getProcessDefinitionVersionTag();
 
   /**
    * @return the number of retries left. The number of retries is provided by
@@ -100,7 +109,7 @@ public interface LockedExternalTask {
 
   /**
    * @return a map of variables that contains an entry for every variable
-   *   that was specified at fetching time, if such a variable exists in the task's
+   *   that was specified at fetching time, if such a variable exists in the tasks
    *   ancestor execution hierarchy.
    */
   VariableMap getVariables();

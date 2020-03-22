@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,15 +14,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.task;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.FilterService;
+import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
-import org.camunda.bpm.engine.RepositoryService;
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -30,19 +45,9 @@ import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * @author Tassilo Weidner
@@ -50,7 +55,7 @@ import static org.junit.Assert.assertEquals;
 public class TaskQueryOrTest {
 
   @Rule
-  public ProcessEngineRule processEngineRule = new ProcessEngineRule();
+  public ProcessEngineRule processEngineRule = new ProcessEngineRule(true);
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -253,6 +258,29 @@ public class TaskQueryOrTest {
         .taskCandidateUser("John Doe")
         .taskCandidateGroup("Controlling")
         .includeAssignedTasks()
+      .endOr()
+      .list();
+
+    // then
+    assertEquals(2, tasks.size());
+  }
+
+  @Test
+  public void shouldReturnTasksWithTaskCandidateUserOrAssignee() {
+    // given
+    Task task1 = taskService.newTask();
+    taskService.saveTask(task1);
+    taskService.setAssignee(task1.getId(), "John Doe");
+
+    Task task2 = taskService.newTask();
+    taskService.saveTask(task2);
+    taskService.addCandidateUser(task2.getId(), "John Doe");
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+      .or()
+        .taskCandidateUser("John Doe")
+        .taskAssignee("John Doe")
       .endOr()
       .list();
 
@@ -676,6 +704,111 @@ public class TaskQueryOrTest {
   }
 
   @Test
+  public void shouldReturnTasksWithProcessInstanceBusinessKeyOrProcessInstanceBusinessKeyLikeAndAssignee() {
+    // given
+    BpmnModelInstance aProcessDefinition = Bpmn.createExecutableProcess("aProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+    repositoryService
+      .createDeployment()
+      .addModelInstance("foo.bpmn", aProcessDefinition)
+      .deploy();
+
+    ProcessInstance processInstance = runtimeService
+      .startProcessInstanceByKey("aProcessDefinition", "aBusinessKey");
+
+    runtimeService
+    .startProcessInstanceByKey("aProcessDefinition", "aBusinessKey");
+
+    BpmnModelInstance anotherProcessDefinition = Bpmn.createExecutableProcess("anotherProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+     repositoryService
+       .createDeployment()
+       .addModelInstance("foo.bpmn", anotherProcessDefinition)
+       .deploy();
+
+    ProcessInstance processInstanceAnotherDefinition = runtimeService
+      .startProcessInstanceByKey("anotherProcessDefinition", "anotherBusinessKey");
+
+    // set the assignee for one task of each process definition
+    String assignee = "testUser4";
+    String taskId = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult().getId();
+    taskService.setAssignee(taskId, assignee);
+
+    taskId = taskService.createTaskQuery().processInstanceId(processInstanceAnotherDefinition.getId()).singleResult().getId();
+    taskService.setAssignee(taskId, assignee);
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+      .or()
+        .processInstanceBusinessKey("aBusinessKey")
+        .processInstanceBusinessKeyLike("anotherBusinessKey")
+      .endOr()
+      .taskAssignee(assignee)
+      .list();
+
+    // then
+    assertEquals(2, tasks.size());
+  }
+
+  @Test
+  public void shouldReturnTasksWithProcessInstanceBusinessKeyOrProcessInstanceBusinessKeyLikeOrStandaloneAssignee() {
+    // given
+    BpmnModelInstance aProcessDefinition = Bpmn.createExecutableProcess("aProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+    repositoryService
+      .createDeployment()
+      .addModelInstance("foo.bpmn", aProcessDefinition)
+      .deploy();
+
+    runtimeService
+      .startProcessInstanceByKey("aProcessDefinition", "aBusinessKey");
+    
+    BpmnModelInstance anotherProcessDefinition = Bpmn.createExecutableProcess("anotherProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+     repositoryService
+       .createDeployment()
+       .addModelInstance("foo.bpmn", anotherProcessDefinition)
+       .deploy();
+
+    runtimeService
+      .startProcessInstanceByKey("anotherProcessDefinition", "anotherBusinessKey");
+
+    // create a standalone task with assignee
+    String assignee = "testUser4";
+    Task newTask = taskService.newTask();
+    newTask.setAssignee(assignee);
+    taskService.saveTask(newTask);
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+      .or()
+        .processInstanceBusinessKey("aBusinessKey")
+        .processInstanceBusinessKeyLike("anotherBusinessKey")
+        .taskAssignee(assignee)
+      .endOr()
+      .list();
+
+    // then
+    assertEquals(3, tasks.size());
+  }
+
+  @Test
   @Deployment(resources={
     "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn",
     "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase2.cmmn"})
@@ -754,7 +887,53 @@ public class TaskQueryOrTest {
   }
 
   @Test
-  @Ignore("CAM-9114")
+  @Deployment(resources={
+    "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn",
+    "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase2.cmmn"})
+  public void shouldReturnTasksWithCaseInstanceBusinessKeyOrCaseInstanceBusinessKeyLikeOrStandaloneAssignee() {
+    // given
+    String caseDefinitionId1 = repositoryService
+      .createCaseDefinitionQuery()
+      .caseDefinitionKey("oneTaskCase")
+      .singleResult()
+      .getId();
+
+    CaseInstance caseInstance1 = caseService
+      .withCaseDefinition(caseDefinitionId1)
+      .businessKey("aBusinessKey")
+      .create();
+
+    String caseDefinitionId2 = repositoryService
+      .createCaseDefinitionQuery()
+      .caseDefinitionKey("oneTaskCase2")
+      .singleResult()
+      .getId();
+
+    CaseInstance caseInstance2 = caseService
+      .withCaseDefinition(caseDefinitionId2)
+      .businessKey("anotherBusinessKey")
+      .create();
+
+    // create a standalone task with assignee
+    String assignee = "testUser4";
+    Task newTask = taskService.newTask();
+    newTask.setAssignee(assignee);
+    taskService.saveTask(newTask);
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+      .or()
+        .caseInstanceBusinessKey(caseInstance1.getBusinessKey())
+        .caseInstanceBusinessKeyLike(caseInstance2.getBusinessKey())
+        .taskAssignee(assignee)
+      .endOr()
+      .list();
+
+    // then
+    assertEquals(3, tasks.size());
+  }
+
+  @Test
   @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
   public void shouldReturnTasksWithCaseInstanceBusinessKeyOrProcessInstanceBusinessKey() {
     String businessKey = "aBusinessKey";
@@ -786,7 +965,6 @@ public class TaskQueryOrTest {
     TaskQuery query = taskService.createTaskQuery();
 
     query
-    .processInstanceBusinessKey(businessKey)
       .or()
         .caseInstanceBusinessKey(businessKey)
         .processInstanceBusinessKey(businessKey)
@@ -1021,7 +1199,79 @@ public class TaskQueryOrTest {
       .count());
   }
 
-  public HashMap<String, Date> createFollowUpAndDueDateTasks() throws ParseException {
+  @Test
+  public void shouldReturnTasksByVariableAndActiveProcesses() throws Exception {
+    // given
+    BpmnModelInstance aProcessDefinition = Bpmn.createExecutableProcess("oneTaskProcess")
+        .startEvent()
+          .userTask("testQuerySuspensionStateTask")
+        .endEvent()
+        .done();
+
+      repositoryService
+        .createDeployment()
+        .addModelInstance("foo.bpmn", aProcessDefinition)
+        .deploy();
+
+    // start two process instance and leave them active
+    runtimeService.startProcessInstanceByKey("oneTaskProcess");
+    runtimeService.startProcessInstanceByKey("oneTaskProcess");
+
+    // start one process instance and suspend it
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("foo", 0);
+    ProcessInstance suspendedProcessInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+    runtimeService.suspendProcessInstanceById(suspendedProcessInstance.getProcessInstanceId());
+
+    // assume
+    assertEquals(2, taskService.createTaskQuery().taskDefinitionKey("testQuerySuspensionStateTask").active().count());
+    assertEquals(1, taskService.createTaskQuery().taskDefinitionKey("testQuerySuspensionStateTask").suspended().count());
+
+    // then
+    assertEquals(3, taskService.createTaskQuery().or().active().processVariableValueEquals("foo", 0).endOr().list().size());
+  }
+
+  @Test
+  public void shouldReturnTasksWithProcessInstanceBusinessKeyOrProcessInstanceIdIn() {
+    // given
+    BpmnModelInstance aProcessDefinition = Bpmn.createExecutableProcess("aProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+    repositoryService
+      .createDeployment()
+      .addModelInstance("foo.bpmn", aProcessDefinition)
+      .deploy();
+
+    String processInstanceId = runtimeService
+      .startProcessInstanceByKey("aProcessDefinition", "aBusinessKey")
+      .getId();
+
+    List<String> processInstanceIds = new ArrayList<String>();
+    for (int i = 0; i < 4; i++) {
+      processInstanceIds.add(runtimeService
+                              .startProcessInstanceByKey("aProcessDefinition")
+                              .getId());
+    }
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+      .or()
+        .processInstanceBusinessKey("aBusinessKey")
+        .processInstanceIdIn(processInstanceIds.get(0), processInstanceIds.get(1))
+      .endOr()
+      .list();
+
+    // then
+    assertEquals(3, tasks.size());
+    for (Task task : tasks) {
+      assertThat(task.getProcessInstanceId()).isIn(processInstanceId, processInstanceIds.get(0), processInstanceIds.get(1));
+    }
+  }
+
+  protected HashMap<String, Date> createFollowUpAndDueDateTasks() throws ParseException {
     final Date date = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss").parse("27/07/2017 01:12:13"),
       oneHourAgo = new Date(date.getTime() - 60 * 60 * 1000),
       oneHourLater = new Date(date.getTime() + 60 * 60 * 1000);

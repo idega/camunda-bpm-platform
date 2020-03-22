@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -18,6 +22,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.RuntimeService;
@@ -72,9 +78,9 @@ public class UpdateSuspendStateUserOperationLogTest {
 
     // when
     Batch suspendprocess = runtimeService.updateProcessInstanceSuspensionState().byProcessInstanceIds(Arrays.asList(processInstance1.getId(), processInstance2.getId())).suspendAsync();
+    rule.getIdentityService().clearAuthentication();
     helper.executeSeedJob(suspendprocess);
     helper.executeJobs(suspendprocess);
-    rule.getIdentityService().clearAuthentication();
 
     // then
     List<UserOperationLogEntry> opLogEntries = rule.getHistoryService().createUserOperationLogQuery().list();
@@ -91,6 +97,7 @@ public class UpdateSuspendStateUserOperationLogTest {
     assertNull(asyncEntry.getProcessInstanceId());
     assertNull(asyncEntry.getOrgValue());
     assertEquals("true", asyncEntry.getNewValue());
+    assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, asyncEntry.getCategory());
 
     UserOperationLogEntry numInstancesEntry = entries.get("nrOfInstances");
     assertNotNull(numInstancesEntry);
@@ -101,6 +108,7 @@ public class UpdateSuspendStateUserOperationLogTest {
     assertNull(numInstancesEntry.getProcessDefinitionId());
     assertNull(numInstancesEntry.getOrgValue());
     assertEquals("2", numInstancesEntry.getNewValue());
+    assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, asyncEntry.getCategory());
 
     assertEquals(asyncEntry.getOperationId(), numInstancesEntry.getOperationId());
   }
@@ -125,7 +133,7 @@ public class UpdateSuspendStateUserOperationLogTest {
     rule.getIdentityService().clearAuthentication();
 
     // then
-    assertEquals(0, rule.getHistoryService().createUserOperationLogQuery().count());
+    assertEquals(0, rule.getHistoryService().createUserOperationLogQuery().entityType(EntityTypes.PROCESS_INSTANCE).count());
   }
 
   protected Map<String, UserOperationLogEntry> asMap(List<UserOperationLogEntry> logEntries) {

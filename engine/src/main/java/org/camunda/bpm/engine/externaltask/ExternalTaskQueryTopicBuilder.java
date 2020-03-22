@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -65,6 +69,62 @@ public interface ExternalTaskQueryTopicBuilder extends ExternalTaskQueryBuilder 
    * @return this builder
    */
   public ExternalTaskQueryTopicBuilder businessKey(String businessKey);
+
+  /**
+   * Define process definition id to filter external tasks by.
+   *
+   * @param processDefinitionId the definition id to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder processDefinitionId(String processDefinitionId);
+
+  /**
+   * Define process definition ids to filter external tasksb by.
+   *
+   * @param processDefinitionIds the definition ids to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder processDefinitionIdIn(String... processDefinitionIds);
+
+  /**
+   * Define process definition key to filter external tasks by.
+   *
+   * @param processDefinitionKey the definition key to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder processDefinitionKey(String processDefinitionKey);
+
+  /**
+   * Define process definition keys to filter external tasks by.
+   *
+   * @param processDefinitionKey the definition keys to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder processDefinitionKeyIn(String... processDefinitionKeys);
+
+
+  /**
+   * Define a process definition version tag to filter external tasks by.
+   * 
+   * @param versionTag the version tag to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder processDefinitionVersionTag(String versionTag);
+
+  /**
+   * Filter external tasks only with null tenant id.
+   *
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder withoutTenantId();
+
+  /**
+   * Define tenant ids to filter external tasks by.
+   *
+   * @param tenantIds the tenant ids to filter by
+   * @return this builder
+   */
+  public ExternalTaskQueryTopicBuilder tenantIdIn(String... tenantIds);
 
   /**
    * Enable deserialization of variable values that are custom objects. By default, the query

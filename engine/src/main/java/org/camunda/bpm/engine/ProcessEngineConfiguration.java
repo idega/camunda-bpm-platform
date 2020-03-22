@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,15 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine;
 
 import java.io.InputStream;
-
+import java.util.Collections;
+import java.util.List;
 import javax.sql.DataSource;
 
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
+import org.camunda.bpm.engine.identity.PasswordPolicy;
 import org.camunda.bpm.engine.impl.BootstrapEngineCommand;
 import org.camunda.bpm.engine.impl.HistoryLevelSetupCommand;
 import org.camunda.bpm.engine.impl.SchemaOperationsProcessEngineBuild;
@@ -26,6 +31,7 @@ import org.camunda.bpm.engine.impl.cfg.BeansConfigurationHelper;
 import org.camunda.bpm.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.cfg.StandaloneProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
+import org.camunda.bpm.engine.runtime.DeserializationTypeValidator;
 import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
 
 
@@ -53,7 +59,7 @@ import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
  * userguide.
  * </p>
  *
- * <p>The second option is great for testing: {@link #createStandalonInMemeProcessEngineConfiguration()}
+ * <p>The second option is great for testing: {@link #createStandaloneInMemProcessEngineConfiguration()}
  * <pre>ProcessEngine processEngine = ProcessEngineConfiguration
  *   .createStandaloneInMemProcessEngineConfiguration()
  *   .buildProcessEngine();
@@ -142,6 +148,31 @@ public abstract class ProcessEngineConfiguration {
   public static final String HISTORY_DEFAULT = HISTORY_AUDIT;
 
   /**
+   * History cleanup is performed based on end time.
+   */
+  public static final String HISTORY_CLEANUP_STRATEGY_END_TIME_BASED = "endTimeBased";
+
+  /**
+   * History cleanup is performed based on removal time.
+   */
+  public static final String HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED = "removalTimeBased";
+
+  /**
+   * Removal time for historic entities is set on execution start.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_START = "start";
+
+  /**
+   * Removal time for historic entities is set if execution has been ended.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_END = "end";
+
+  /**
+   * Removal time for historic entities is not set.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_NONE = "none";
+
+  /**
    * Always enables check for {@link Authorization#AUTH_TYPE_REVOKE revoke} authorizations.
    * This mode is equal to the &lt; 7.5 behavior.
    *<p />
@@ -180,6 +211,7 @@ public abstract class ProcessEngineConfiguration {
   protected boolean jobExecutorAcquireByDueDate = false;
   protected boolean jobExecutorAcquireByPriority = false;
 
+  protected boolean ensureJobDueDateNotNull = false;
   protected boolean producePrioritizedJobs = true;
   protected boolean producePrioritizedExternalTasks = true;
 
@@ -231,6 +263,12 @@ public abstract class ProcessEngineConfiguration {
   protected boolean createIncidentOnFailedJobEnabled = true;
 
   /**
+   * configuration of password policy
+   */
+  protected boolean enablePasswordPolicy;
+  protected PasswordPolicy passwordPolicy;
+
+  /**
    * switch for controlling whether the process engine performs authorization checks.
    * The default value is false.
    */
@@ -273,6 +311,45 @@ public abstract class ProcessEngineConfiguration {
   protected String authorizationCheckRevokes = AUTHORIZATION_CHECK_REVOKE_AUTO;
 
   /**
+   * A parameter used for defining acceptable values for the User, Group
+   * and Tenant IDs. The pattern can be defined by using the standard
+   * Java Regular Expression syntax should be used.
+   *
+   * <p>By default only alphanumeric values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String generalResourceWhitelistPattern =  "[a-zA-Z0-9]+|camunda-admin";
+
+  /**
+   * A parameter used for defining acceptable values for the User IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String userResourceWhitelistPattern;
+
+  /**
+   * A parameter used for defining acceptable values for the Group IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String groupResourceWhitelistPattern;
+
+  /**
+   * A parameter used for defining acceptable values for the Tenant IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String tenantResourceWhitelistPattern;
+
+  /**
    * If the value of this flag is set <code>true</code> then the process engine
    * throws {@link ProcessEngineException} when no catching boundary event was
    * defined for an error event.
@@ -280,6 +357,58 @@ public abstract class ProcessEngineConfiguration {
    * <p>The default value is <code>false</code>.</p>
    */
   protected boolean enableExceptionsAfterUnhandledBpmnError = false;
+
+  /**
+   * If the value of this flag is set to <code>false</code>, {@link OptimisticLockingException}s
+   * are not skipped for UPDATE or DELETE operations applied to historic entities.
+   *
+   * <p>The default value is <code>true</code>.</p>
+   */
+  protected boolean skipHistoryOptimisticLockingExceptions = true;
+
+  /**
+   * If the value of this flag is set to <code>true</code>,
+   * READ_INSTANCE_VARIABLE,
+   * READ_HISTORY_VARIABLE, or
+   * READ_TASK_VARIABLE on Process Definition resource, and
+   * READ_VARIABLE on Task resource
+   * will be required to fetch variables when the autorizations are enabled.
+   */
+  protected boolean enforceSpecificVariablePermission = false;
+
+  /**
+   * Specifies which permissions will not be taken into account in the
+   * authorizations checks if authorization is enabled.
+   */
+  protected List<String> disabledPermissions = Collections.emptyList();
+
+  /**
+   * If the value of this flag is set to <code>false</code> exceptions that occur
+   * during command execution will not be logged before re-thrown. This can prevent
+   * multiple logs of the same exception (e.g. exceptions that occur during job execution)
+   * but can also hide valuable debugging/rootcausing information.
+   */
+  protected boolean enableCmdExceptionLogging = true;
+
+  /**
+   * If the value of this flag is set to <code>true</code> exceptions that occur
+   * during the execution of a job that still has retries left will not be logged.
+   * If the job does not have any retries left, the exception will still be logged
+   * on logging level WARN.
+   */
+  protected boolean enableReducedJobExceptionLogging = false;
+
+  /** Specifies which classes are allowed for deserialization */
+  protected String deserializationAllowedClasses;
+
+  /** Specifies which packages are allowed for deserialization */
+  protected String deserializationAllowedPackages;
+
+  /** Validates types before deserialization */
+  protected DeserializationTypeValidator deserializationTypeValidator;
+
+  /** Indicates whether type validation should be done before deserialization */
+  protected boolean deserializationTypeValidationEnabled = false;
 
   /** use one of the static createXxxx methods instead */
   protected ProcessEngineConfiguration() {
@@ -731,6 +860,38 @@ public abstract class ProcessEngineConfiguration {
     return this;
   }
 
+  public String getGeneralResourceWhitelistPattern() {
+    return generalResourceWhitelistPattern;
+  }
+
+  public void setGeneralResourceWhitelistPattern(String generalResourceWhitelistPattern) {
+    this.generalResourceWhitelistPattern = generalResourceWhitelistPattern;
+  }
+
+  public String getUserResourceWhitelistPattern() {
+    return userResourceWhitelistPattern;
+  }
+
+  public void setUserResourceWhitelistPattern(String userResourceWhitelistPattern) {
+    this.userResourceWhitelistPattern = userResourceWhitelistPattern;
+  }
+
+  public String getGroupResourceWhitelistPattern() {
+    return groupResourceWhitelistPattern;
+  }
+
+  public void setGroupResourceWhitelistPattern(String groupResourceWhitelistPattern) {
+    this.groupResourceWhitelistPattern = groupResourceWhitelistPattern;
+  }
+
+  public String getTenantResourceWhitelistPattern() {
+    return tenantResourceWhitelistPattern;
+  }
+
+  public void setTenantResourceWhitelistPattern(String tenantResourceWhitelistPattern) {
+    this.tenantResourceWhitelistPattern = tenantResourceWhitelistPattern;
+  }
+
   public int getDefaultNumberOfRetries() {
     return defaultNumberOfRetries;
   }
@@ -746,6 +907,14 @@ public abstract class ProcessEngineConfiguration {
   public ProcessEngineConfiguration setValueTypeResolver(ValueTypeResolver valueTypeResolver) {
     this.valueTypeResolver = valueTypeResolver;
     return this;
+  }
+
+  public boolean isEnsureJobDueDateNotNull() {
+    return ensureJobDueDateNotNull;
+  }
+
+  public void setEnsureJobDueDateNotNull(boolean ensureJobDueDateNotNull) {
+    this.ensureJobDueDateNotNull = ensureJobDueDateNotNull;
   }
 
   public boolean isProducePrioritizedJobs() {
@@ -787,4 +956,102 @@ public abstract class ProcessEngineConfiguration {
   public void setEnableExceptionsAfterUnhandledBpmnError(boolean enableExceptionsAfterUnhandledBpmnError) {
     this.enableExceptionsAfterUnhandledBpmnError = enableExceptionsAfterUnhandledBpmnError;
   }
+
+  public boolean isSkipHistoryOptimisticLockingExceptions() {
+    return skipHistoryOptimisticLockingExceptions;
+  }
+
+  public ProcessEngineConfiguration setSkipHistoryOptimisticLockingExceptions(boolean skipHistoryOptimisticLockingExceptions) {
+    this.skipHistoryOptimisticLockingExceptions = skipHistoryOptimisticLockingExceptions;
+    return this;
+  }
+
+  public boolean isEnforceSpecificVariablePermission() {
+    return enforceSpecificVariablePermission;
+  }
+
+  public void setEnforceSpecificVariablePermission(boolean ensureSpecificVariablePermission) {
+    this.enforceSpecificVariablePermission = ensureSpecificVariablePermission;
+  }
+
+  public List<String> getDisabledPermissions() {
+    return disabledPermissions;
+  }
+
+  public void setDisabledPermissions(List<String> disabledPermissions) {
+    this.disabledPermissions = disabledPermissions;
+  }
+
+  public boolean isEnablePasswordPolicy() {
+    return enablePasswordPolicy;
+  }
+
+  public ProcessEngineConfiguration setEnablePasswordPolicy(boolean enablePasswordPolicy) {
+    this.enablePasswordPolicy = enablePasswordPolicy;
+    return this;
+  }
+
+  public PasswordPolicy getPasswordPolicy() {
+    return passwordPolicy;
+  }
+
+  public ProcessEngineConfiguration setPasswordPolicy(PasswordPolicy passwordPolicy) {
+    this.passwordPolicy = passwordPolicy;
+    return this;
+  }
+
+  public boolean isEnableCmdExceptionLogging() {
+    return enableCmdExceptionLogging;
+  }
+
+  public ProcessEngineConfiguration setEnableCmdExceptionLogging(boolean enableCmdExceptionLogging) {
+    this.enableCmdExceptionLogging = enableCmdExceptionLogging;
+    return this;
+  }
+
+  public boolean isEnableReducedJobExceptionLogging() {
+    return enableReducedJobExceptionLogging;
+  }
+
+  public ProcessEngineConfiguration setEnableReducedJobExceptionLogging(boolean enableReducedJobExceptionLogging) {
+    this.enableReducedJobExceptionLogging = enableReducedJobExceptionLogging;
+    return this;
+  }
+
+  public String getDeserializationAllowedClasses() {
+    return deserializationAllowedClasses;
+  }
+
+  public ProcessEngineConfiguration setDeserializationAllowedClasses(String deserializationAllowedClasses) {
+    this.deserializationAllowedClasses = deserializationAllowedClasses;
+    return this;
+  }
+
+  public String getDeserializationAllowedPackages() {
+    return deserializationAllowedPackages;
+  }
+
+  public ProcessEngineConfiguration setDeserializationAllowedPackages(String deserializationAllowedPackages) {
+    this.deserializationAllowedPackages = deserializationAllowedPackages;
+    return this;
+  }
+
+  public DeserializationTypeValidator getDeserializationTypeValidator() {
+    return deserializationTypeValidator;
+  }
+
+  public ProcessEngineConfiguration setDeserializationTypeValidator(DeserializationTypeValidator deserializationTypeValidator) {
+    this.deserializationTypeValidator = deserializationTypeValidator;
+    return this;
+  }
+
+  public boolean isDeserializationTypeValidationEnabled() {
+    return deserializationTypeValidationEnabled;
+  }
+
+  public ProcessEngineConfiguration setDeserializationTypeValidationEnabled(boolean deserializationTypeValidationEnabled) {
+    this.deserializationTypeValidationEnabled = deserializationTypeValidationEnabled;
+    return this;
+  }
+
 }

@@ -1,8 +1,12 @@
- /* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,6 +56,8 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
 
   protected boolean skipCustomListeners = false;
   protected boolean skipIoMappings = false;
+  protected boolean externallyTerminated = false;
+  protected String annotation;
 
   protected List<AbstractProcessInstanceModificationCommand> operations = new ArrayList<AbstractProcessInstanceModificationCommand>();
 
@@ -100,6 +106,12 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
   public ProcessInstanceModificationBuilder cancelAllForActivity(String activityId) {
     ensureNotNull(NotValidException.class, "activityId", activityId);
     operations.add(new ActivityCancellationCmd(processInstanceId, activityId));
+    return this;
+  }
+
+  @Override
+  public ProcessInstanceModificationBuilder cancellationSourceExternal(boolean external) {
+    this.externallyTerminated = external;
     return this;
   }
 
@@ -227,6 +239,12 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     return this;
   }
 
+  @Override
+  public ProcessInstanceModificationBuilder setAnnotation(String annotation) {
+    ensureNotNull(NotValidException.class, "Annotation must not be null", "annotation", annotation);
+    this.annotation = annotation;
+    return this;
+  }
 
   @Override
   public void execute() {
@@ -291,6 +309,10 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
     return skipIoMappings;
   }
 
+  public boolean isExternallyTerminated() {
+    return externallyTerminated;
+  }
+
   public void setSkipCustomListeners(boolean skipCustomListeners) {
     this.skipCustomListeners = skipCustomListeners;
   }
@@ -309,5 +331,13 @@ public class ProcessInstanceModificationBuilderImpl implements ProcessInstanceMo
 
   public void setModificationReason(String modificationReason) {
     this.modificationReason = modificationReason;
+  }
+
+  public String getAnnotation() {
+    return annotation;
+  }
+
+  public void setAnnotationInternal(String annotation) {
+    this.annotation = annotation;
   }
 }

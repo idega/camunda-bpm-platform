@@ -1,6 +1,22 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockBatch;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,7 +46,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.http.ContentType;
+import io.restassured.http.ContentType;
 
 public class ModificationRestServiceInteractionTest extends AbstractRestServiceTest {
 
@@ -726,4 +742,59 @@ public class ModificationRestServiceInteractionTest extends AbstractRestServiceT
     verify(modificationBuilderMock).cancelAllForActivity("activityId");
     verify(modificationBuilderMock).executeAsync();
   }
+
+  @Test
+  public void executeSyncModificationWithAnnotation() {
+    Map<String, Object> json = new HashMap<String, Object>();
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+
+    json.put("skipIoMappings", true);
+    json.put("processInstanceIds", Arrays.asList("200", "100"));
+    instructions.add(ModificationInstructionBuilder.cancellation().activityId("activityId").cancelCurrentActiveActivityInstances(false).getJson());
+    json.put("instructions", instructions);
+    json.put("processDefinitionId", "processDefinitionId");
+    json.put("annotation", "anAnnotation");
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(EXECUTE_MODIFICATION_SYNC_URL);
+
+    verify(modificationBuilderMock).skipIoMappings();
+    verify(modificationBuilderMock).cancelAllForActivity("activityId");
+    verify(modificationBuilderMock).setAnnotation("anAnnotation");
+    verify(modificationBuilderMock).execute();
+  }
+
+  @Test
+  public void executeAsyncModificationWithAnnotation() {
+    Map<String, Object> json = new HashMap<String, Object>();
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+
+    json.put("skipCustomListeners", true);
+    json.put("processInstanceIds", Arrays.asList("200", "100"));
+    instructions.add(ModificationInstructionBuilder.startBefore().activityId("activityId").getJson());
+    json.put("instructions", instructions);
+    json.put("processDefinitionId", "processDefinitionId");
+    json.put("annotation", "anAnnotation");
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(EXECUTE_MODIFICATION_ASYNC_URL);
+
+    verify(modificationBuilderMock).skipCustomListeners();
+    verify(modificationBuilderMock).startBeforeActivity("activityId");
+    verify(modificationBuilderMock).setAnnotation("anAnnotation");
+    verify(modificationBuilderMock).executeAsync();
+  }
+
 }

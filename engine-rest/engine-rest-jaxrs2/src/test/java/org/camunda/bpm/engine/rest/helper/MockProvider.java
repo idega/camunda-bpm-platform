@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +52,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_ACTIVITY_INSTANCE_ID = "anActivityInstanceId";
   public static final String EXAMPLE_PROCESS_DEFINITION_ID = "aProcDefId";
   public static final String EXAMPLE_PROCESS_DEFINITION_KEY = "aKey";
+  public static final String EXAMPLE_PROCESS_DEFINITION_VERSION_TAG = "42";
   public static final String EXAMPLE_TENANT_ID = "aTenantId";
   public static final Integer EXTERNAL_TASK_RETRIES = new Integer(5);
   public static final String EXTERNAL_TASK_ERROR_MESSAGE = "some error";
@@ -83,6 +88,7 @@ public abstract class MockProvider {
       .lockExpirationTime(DateTimeUtil.parseDate(EXTERNAL_TASK_LOCK_EXPIRATION_TIME))
       .processDefinitionId(EXAMPLE_PROCESS_DEFINITION_ID)
       .processDefinitionKey(EXAMPLE_PROCESS_DEFINITION_KEY)
+      .processDefinitionVersionTag(EXAMPLE_PROCESS_DEFINITION_VERSION_TAG)
       .processInstanceId(EXAMPLE_PROCESS_INSTANCE_ID)
       .retries(EXTERNAL_TASK_RETRIES)
       .suspended(EXTERNAL_TASK_SUSPENDED)

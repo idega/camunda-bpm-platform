@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,26 +17,40 @@
 package org.camunda.bpm.engine.impl;
 
 import java.util.Map;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
-import org.camunda.bpm.engine.*;
+import org.camunda.bpm.engine.AuthorizationService;
+import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.DecisionService;
+import org.camunda.bpm.engine.ExternalTaskService;
+import org.camunda.bpm.engine.FilterService;
+import org.camunda.bpm.engine.FormService;
+import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.IdentityService;
+import org.camunda.bpm.engine.ManagementService;
+import org.camunda.bpm.engine.OptimisticLockingException;
+import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.ProcessEngines;
+import org.camunda.bpm.engine.RepositoryService;
+import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.TransactionContextFactory;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.event.SimpleIpBasedProvider;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.metrics.reporter.DbMetricsReporter;
+import org.camunda.bpm.engine.impl.util.CompositeCondition;
 
 /**
  * @author Tom Baeyens
  */
 public class ProcessEngineImpl implements ProcessEngine {
 
-  public static final ReentrantLock LOCK_MONITOR = new ReentrantLock(false);
-  public static final Condition IS_EXTERNAL_TASK_AVAILABLE = LOCK_MONITOR.newCondition();
+  /** external task conditions used to signal long polling in rest API */
+  public static final CompositeCondition EXT_TASK_CONDITIONS = new CompositeCondition();
 
   private final static ProcessEngineLogger LOG = ProcessEngineLogger.INSTANCE;
 
@@ -103,7 +121,17 @@ public class ProcessEngineImpl implements ProcessEngine {
     }
 
     if (processEngineConfiguration.isMetricsEnabled()) {
-      String reporterId = processEngineConfiguration.getMetricsReporterIdProvider().provideId(this);
+      String reporterId;
+      // only use a deprecated, custom MetricsReporterIdProvider,
+      // if no static hostname AND custom HostnameProvider are set.
+      // See ProcessEngineConfigurationImpl#initHostname()
+      if (processEngineConfiguration.getMetricsReporterIdProvider() != null
+          && processEngineConfiguration.getHostnameProvider() instanceof SimpleIpBasedProvider) {
+        reporterId = processEngineConfiguration.getMetricsReporterIdProvider().provideId(this);
+      } else {
+        reporterId = processEngineConfiguration.getHostname();;
+      }
+
       DbMetricsReporter dbMetricsReporter = processEngineConfiguration.getDbMetricsReporter();
       dbMetricsReporter.setReporterId(reporterId);
 

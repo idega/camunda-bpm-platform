@@ -1,13 +1,28 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_JOB_ACTIVITY_ID;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_JOB_DEFINITION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TENANT_ID_LIST;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_JOB_DEFINITION_ID;
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.inOrder;
@@ -35,8 +50,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 
 /**
@@ -137,6 +152,16 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
     inOrder = Mockito.inOrder(mockedQuery);
     executeAndVerifySorting("incidentId", "desc", Status.OK);
     inOrder.verify(mockedQuery).orderByIncidentId();
+    inOrder.verify(mockedQuery).desc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("incidentMessage", "asc", Status.OK);
+    inOrder.verify(mockedQuery).orderByIncidentMessage();
+    inOrder.verify(mockedQuery).asc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("incidentMessage", "desc", Status.OK);
+    inOrder.verify(mockedQuery).orderByIncidentMessage();
     inOrder.verify(mockedQuery).desc();
 
     inOrder = Mockito.inOrder(mockedQuery);
@@ -299,7 +324,7 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
   }
 
   @Test
-  public void testSimpleHistoricTaskInstanceQuery() {
+  public void testSimpleIncidentQuery() {
     Response response = given()
       .then()
         .expect()
@@ -322,6 +347,7 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
     Date returnedIncidentTimestamp = DateTimeUtil.parseDate(from(content).getString("[0].incidentTimestamp"));
     String returnedIncidentType = from(content).getString("[0].incidentType");
     String returnedActivityId = from(content).getString("[0].activityId");
+    String returnedFailedActivityId = from(content).getString("[0].failedActivityId");
     String returnedCauseIncidentId = from(content).getString("[0].causeIncidentId");
     String returnedRootCauseIncidentId = from(content).getString("[0].rootCauseIncidentId");
     String returnedConfiguration = from(content).getString("[0].configuration");
@@ -336,6 +362,7 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_PROC_DEF_ID, returnedProcessDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_TYPE, returnedIncidentType);
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_ACTIVITY_ID, returnedActivityId);
+    Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_FAILED_ACTIVITY_ID, returnedFailedActivityId);
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_CAUSE_INCIDENT_ID, returnedCauseIncidentId);
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_ROOT_CAUSE_INCIDENT_ID, returnedRootCauseIncidentId);
     Assert.assertEquals(MockProvider.EXAMPLE_INCIDENT_CONFIGURATION, returnedConfiguration);
@@ -393,6 +420,22 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
   }
 
   @Test
+  public void testQueryByProcessDefinitionKey() {
+    String key1 = "foo";
+    String key2 = "bar";
+
+    given()
+      .queryParam("processDefinitionKeyIn", key1 + "," + key2)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(INCIDENT_QUERY_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+
+    inOrder.verify(mockedQuery).processDefinitionKeyIn("foo", "bar");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
   public void testQueryByProcessInstanceId() {
     String processInstanceId = MockProvider.EXAMPLE_INCIDENT_PROC_INST_ID;
 
@@ -421,11 +464,23 @@ public class IncidentRestServiceQueryTest extends AbstractRestServiceTest {
     String activityId = MockProvider.EXAMPLE_INCIDENT_ACTIVITY_ID;
 
     given()
-      .queryParam("activityId", activityId)
+    .queryParam("activityId", activityId)
+    .then().expect().statusCode(Status.OK.getStatusCode())
+    .when().get(INCIDENT_QUERY_URL);
+
+    verify(mockedQuery).activityId(activityId);
+  }
+
+  @Test
+  public void testQueryByFailedActivityId() {
+    String activityId = MockProvider.EXAMPLE_INCIDENT_FAILED_ACTIVITY_ID;
+
+    given()
+      .queryParam("failedActivityId", activityId)
       .then().expect().statusCode(Status.OK.getStatusCode())
       .when().get(INCIDENT_QUERY_URL);
 
-    verify(mockedQuery).activityId(activityId);
+    verify(mockedQuery).failedActivityId(activityId);
   }
 
   @Test

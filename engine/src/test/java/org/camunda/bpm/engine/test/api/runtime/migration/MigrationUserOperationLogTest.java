@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -84,6 +88,7 @@ public class MigrationUserOperationLogTest {
     Assert.assertNull(procDefEntry.getProcessInstanceId());
     Assert.assertEquals(sourceProcessDefinition.getId(), procDefEntry.getOrgValue());
     Assert.assertEquals(targetProcessDefinition.getId(), procDefEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, procDefEntry.getCategory());
 
     UserOperationLogEntry asyncEntry = entries.get("async");
     Assert.assertNotNull(asyncEntry);
@@ -94,6 +99,7 @@ public class MigrationUserOperationLogTest {
     Assert.assertNull(asyncEntry.getProcessInstanceId());
     Assert.assertNull(asyncEntry.getOrgValue());
     Assert.assertEquals("false", asyncEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, asyncEntry.getCategory());
 
     UserOperationLogEntry numInstanceEntry = entries.get("nrOfInstances");
     Assert.assertNotNull(numInstanceEntry);
@@ -104,6 +110,7 @@ public class MigrationUserOperationLogTest {
     Assert.assertNull(numInstanceEntry.getProcessInstanceId());
     Assert.assertNull(numInstanceEntry.getOrgValue());
     Assert.assertEquals("1", numInstanceEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, numInstanceEntry.getCategory());
 
     Assert.assertEquals(procDefEntry.getOperationId(), asyncEntry.getOperationId());
     Assert.assertEquals(asyncEntry.getOperationId(), numInstanceEntry.getOperationId());

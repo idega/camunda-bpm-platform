@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +16,20 @@
  */
 package org.camunda.bpm.engine.rest.dto.history;
 
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response.Status;
+import static java.lang.Boolean.TRUE;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response.Status;
+
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.VariableQueryParameterDto;
@@ -31,6 +39,8 @@ import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricProcessInstanceQuery> {
 
@@ -65,11 +75,13 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private Set<String> processInstanceIds;
   private String processDefinitionId;
   private String processDefinitionKey;
+  private List<String> processDefinitionKeys;
   private String processDefinitionName;
   private String processDefinitionNameLike;
   private List<String> processDefinitionKeyNotIn;
   private String processInstanceBusinessKey;
   private String processInstanceBusinessKeyLike;
+  private Boolean rootProcessInstances;
   private Boolean finished;
   private Boolean unfinished;
   private Boolean withIncidents;
@@ -93,6 +105,7 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private String subCaseInstanceId;
   private String caseInstanceId;
   private List<String> tenantIds;
+  private Boolean withoutTenantId;
   private List<String> executedActivityIdIn;
   private List<String> activeActivityIdIn;
   private Boolean active;
@@ -103,10 +116,20 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
 
   private List<VariableQueryParameterDto> variables;
 
+  protected Boolean variableNamesIgnoreCase;
+  protected Boolean variableValuesIgnoreCase;
+
+  private List<HistoricProcessInstanceQueryDto> orQueries;
+
   public HistoricProcessInstanceQueryDto() {}
 
   public HistoricProcessInstanceQueryDto(ObjectMapper objectMapper, MultivaluedMap<String, String> queryParameters) {
     super(objectMapper, queryParameters);
+  }
+
+  @CamundaQueryParam("orQueries")
+  public void setOrQueries(List<HistoricProcessInstanceQueryDto> orQueries) {
+    this.orQueries = orQueries;
   }
 
   @CamundaQueryParam("processInstanceId")
@@ -143,6 +166,11 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.processDefinitionKey = processDefinitionKey;
   }
 
+  @CamundaQueryParam(value = "processDefinitionKeyIn", converter = StringListConverter.class)
+  public void setProcessDefinitionKeyIn(List<String> processDefinitionKeys) {
+    this.processDefinitionKeys = processDefinitionKeys;
+  }
+
   @CamundaQueryParam(value = "processDefinitionKeyNotIn", converter = StringListConverter.class)
   public void setProcessDefinitionKeyNotIn(List<String> processDefinitionKeys) {
     this.processDefinitionKeyNotIn = processDefinitionKeys;
@@ -156,6 +184,11 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   @CamundaQueryParam("processInstanceBusinessKeyLike")
   public void setProcessInstanceBusinessKeyLike(String processInstanceBusinessKeyLike) {
     this.processInstanceBusinessKeyLike = processInstanceBusinessKeyLike;
+  }
+
+  @CamundaQueryParam(value = "rootProcessInstances", converter = BooleanConverter.class)
+  public void setRootProcessInstances(Boolean rootProcessInstances) {
+    this.rootProcessInstances = rootProcessInstances;
   }
 
   @CamundaQueryParam(value = "finished", converter = BooleanConverter.class)
@@ -248,6 +281,16 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.variables = variables;
   }
 
+  @CamundaQueryParam(value = "variableNamesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableNamesIgnoreCase(Boolean variableNamesIgnoreCase) {
+    this.variableNamesIgnoreCase = variableNamesIgnoreCase;
+  }
+
+  @CamundaQueryParam(value = "variableValuesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableValuesIgnoreCase(Boolean variableValuesIgnoreCase) {
+    this.variableValuesIgnoreCase = variableValuesIgnoreCase;
+  }
+
   public String getIncidentType() {
     return incidentType;
   }
@@ -260,6 +303,11 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   @CamundaQueryParam(value = "tenantIdIn", converter = StringListConverter.class)
   public void setTenantIdIn(List<String> tenantIds) {
     this.tenantIds = tenantIds;
+  }
+
+  @CamundaQueryParam(value = "withoutTenantId", converter = BooleanConverter.class)
+  public void setWithoutTenantId(Boolean withoutTenantId) {
+    this.withoutTenantId = withoutTenantId;
   }
 
   @CamundaQueryParam(value = "executedActivityAfter", converter = DateConverter.class)
@@ -327,9 +375,20 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     return engine.getHistoryService().createHistoricProcessInstanceQuery();
   }
 
+  public List<HistoricProcessInstanceQueryDto> getOrQueries() {
+    return orQueries;
+  }
+
   @Override
   protected void applyFilters(HistoricProcessInstanceQuery query) {
-
+    if (orQueries != null) {
+      for (HistoricProcessInstanceQueryDto orQueryDto: orQueries) {
+        HistoricProcessInstanceQueryImpl orQuery = new HistoricProcessInstanceQueryImpl();
+        orQuery.setOrQueryActive();
+        orQueryDto.applyFilters(orQuery);
+        ((HistoricProcessInstanceQueryImpl) query).addOrQuery(orQuery);
+      }
+    }
     if (processInstanceId != null) {
       query.processInstanceId(processInstanceId);
     }
@@ -341,6 +400,9 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     }
     if (processDefinitionKey != null) {
       query.processDefinitionKey(processDefinitionKey);
+    }
+    if (processDefinitionKeys != null && !processDefinitionKeys.isEmpty()) {
+      query.processDefinitionKeyIn(processDefinitionKeys.toArray(new String[processDefinitionKeys.size()]));
     }
     if (processDefinitionName != null) {
       query.processDefinitionName(processDefinitionName);
@@ -356,6 +418,9 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     }
     if (processInstanceBusinessKeyLike != null) {
       query.processInstanceBusinessKeyLike(processInstanceBusinessKeyLike);
+    }
+    if (rootProcessInstances != null && rootProcessInstances) {
+      query.rootProcessInstances();
     }
     if (finished != null && finished) {
       query.finished();
@@ -414,7 +479,15 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
     }
-
+    if (TRUE.equals(withoutTenantId)) {
+      query.withoutTenantId();
+    }
+    if(TRUE.equals(variableNamesIgnoreCase)) {
+      query.matchVariableNamesIgnoreCase();
+    }
+    if(TRUE.equals(variableValuesIgnoreCase)) {
+      query.matchVariableValuesIgnoreCase();
+    }
     if (variables != null) {
       for (VariableQueryParameterDto variableQueryParam : variables) {
         String variableName = variableQueryParam.getName();

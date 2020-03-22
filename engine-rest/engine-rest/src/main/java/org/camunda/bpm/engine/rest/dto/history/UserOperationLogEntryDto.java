@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,11 +43,16 @@ public class UserOperationLogEntryDto {
   protected String userId;
   protected Date timestamp;
   protected String operationId;
+  protected String externalTaskId;
   protected String operationType;
   protected String entityType;
   protected String property;
   protected String orgValue;
   protected String newValue;
+  protected Date removalTime;
+  protected String rootProcessInstanceId;
+  protected String category;
+  protected String annotation;
 
   public static UserOperationLogEntryDto map(UserOperationLogEntry entry) {
     UserOperationLogEntryDto dto = new UserOperationLogEntryDto();
@@ -64,11 +73,16 @@ public class UserOperationLogEntryDto {
     dto.userId = entry.getUserId();
     dto.timestamp = entry.getTimestamp();
     dto.operationId = entry.getOperationId();
+    dto.externalTaskId = entry.getExternalTaskId();
     dto.operationType = entry.getOperationType();
     dto.entityType = entry.getEntityType();
     dto.property = entry.getProperty();
     dto.orgValue = entry.getOrgValue();
     dto.newValue = entry.getNewValue();
+    dto.removalTime = entry.getRemovalTime();
+    dto.rootProcessInstanceId = entry.getRootProcessInstanceId();
+    dto.category = entry.getCategory();
+    dto.annotation = entry.getAnnotation();
 
     return dto;
   }
@@ -144,6 +158,10 @@ public class UserOperationLogEntryDto {
   public String getOperationId() {
     return operationId;
   }
+  
+  public String getExternalTaskId() {
+    return externalTaskId;
+  }
 
   public String getOperationType() {
     return operationType;
@@ -164,4 +182,21 @@ public class UserOperationLogEntryDto {
   public String getNewValue() {
     return newValue;
   }
+
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+  
+  public String getCategory() {
+    return category;
+  }
+
+  public String getAnnotation() {
+    return annotation;
+  }
+
 }

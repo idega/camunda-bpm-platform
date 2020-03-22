@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -105,7 +109,7 @@ public class LegacyBehavior {
    * See: javadoc of this class for note about concurrent scopes.
    *
    * @param execution the concurrent scope execution to destroy
-   * @param cancellingActivity the activity that cancels the execution; it must hold that
+   * @param cancelledScopeActivity the activity that cancels the execution; it must hold that
    *   cancellingActivity's event scope is the scope the execution is responsible for
    */
   public static void cancelConcurrentScope(PvmExecutionImpl execution, PvmActivity cancelledScopeActivity) {
@@ -196,7 +200,6 @@ public class LegacyBehavior {
   /**
    * This method
    * @param scopeExecution
-   * @param isLegacyBehaviorTurnedOff
    * @return
    */
   protected static boolean isLegacyBehaviorRequired(ActivityExecution scopeExecution) {
@@ -221,7 +224,7 @@ public class LegacyBehavior {
    * - For an event subprocess this is the scope execution of the scope in which the event subprocess is embeded in
    * - For a multi instance sequential subprocess this is the multi instace scope body.
    *
-   * @param targetScope
+   * @param scope
    * @param activityExecutionMapping
    * @return
    */

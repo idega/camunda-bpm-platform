@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,6 +15,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.rest.dto.history;
+
+import static java.lang.Boolean.TRUE;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,10 +55,11 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
   protected static final String SORT_BY_DEPLOYMENT_ID = "deploymentId";
   protected static final String SORT_PARTIALLY_BY_OCCURRENCE = "occurrence";
   protected static final String SORT_BY_TENANT_ID = "tenantId";
+  protected static final String SORT_BY_HOSTNAME = "hostname";
 
   protected static final List<String> VALID_SORT_BY_VALUES;
   static {
-    VALID_SORT_BY_VALUES = new ArrayList<String>();
+    VALID_SORT_BY_VALUES = new ArrayList<>();
 
     VALID_SORT_BY_VALUES.add(SORT_BY_TIMESTAMP);
     VALID_SORT_BY_VALUES.add(SORT_BY_JOB_ID);
@@ -68,6 +75,7 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
     VALID_SORT_BY_VALUES.add(SORT_BY_DEPLOYMENT_ID);
     VALID_SORT_BY_VALUES.add(SORT_PARTIALLY_BY_OCCURRENCE);
     VALID_SORT_BY_VALUES.add(SORT_BY_TENANT_ID);
+    VALID_SORT_BY_VALUES.add(SORT_BY_HOSTNAME);
   }
 
   protected String id;
@@ -77,6 +85,7 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
   protected String jobDefinitionType;
   protected String jobDefinitionConfiguration;
   protected String[] activityIds;
+  protected String[] failedActivityIds;
   protected String[] executionIds;
   protected String processInstanceId;
   protected String processDefinitionId;
@@ -89,6 +98,8 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
   protected Long jobPriorityHigherThanOrEquals;
   protected Long jobPriorityLowerThanOrEquals;
   protected List<String> tenantIds;
+  protected Boolean withoutTenantId;
+  protected String hostname;
 
   public HistoricJobLogQueryDto() {}
 
@@ -129,6 +140,11 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
   @CamundaQueryParam(value="activityIdIn", converter = StringArrayConverter.class)
   public void setActivityIdIn(String[] activityIds) {
     this.activityIds = activityIds;
+  }
+
+  @CamundaQueryParam(value="failedActivityIdIn", converter = StringArrayConverter.class)
+  public void setFailedActivityIdIn(String[] activityIds) {
+    this.failedActivityIds = activityIds;
   }
 
   @CamundaQueryParam(value="executionIdIn", converter = StringArrayConverter.class)
@@ -191,6 +207,16 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
     this.tenantIds = tenantIds;
   }
 
+  @CamundaQueryParam(value = "withoutTenantId", converter = BooleanConverter.class)
+  public void setWithoutTenantId(Boolean withoutTenantId) {
+    this.withoutTenantId = withoutTenantId;
+  }
+
+  @CamundaQueryParam(value = "hostname")
+  public void setHostname(String hostname) {
+    this.hostname = hostname;
+  }
+
   @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
@@ -229,6 +255,10 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
 
     if (activityIds != null && activityIds.length > 0) {
       query.activityIdIn(activityIds);
+    }
+
+    if (failedActivityIds != null && failedActivityIds.length > 0) {
+      query.failedActivityIdIn(failedActivityIds);
     }
 
     if (executionIds != null && executionIds.length > 0) {
@@ -277,6 +307,12 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
     }
+    if (TRUE.equals(withoutTenantId)) {
+      query.withoutTenantId();
+    }
+    if (hostname != null && !hostname.isEmpty()) {
+      query.hostname(hostname);
+    }
   }
 
   @Override
@@ -309,6 +345,8 @@ public class HistoricJobLogQueryDto extends AbstractQueryDto<HistoricJobLogQuery
       query.orderPartiallyByOccurrence();
     } else if (sortBy.equals(SORT_BY_TENANT_ID)) {
       query.orderByTenantId();
+    } else if (sortBy.equals(SORT_BY_HOSTNAME)) {
+      query.orderByHostname();
     }
   }
 

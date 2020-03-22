@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +32,8 @@ public class TransitionInstanceDto {
   protected String activityName;
   protected String activityType;
   protected String executionId;
+  protected String[] incidentIds;
+  protected ActivityInstanceIncidentDto[] incidents;
 
   public String getId() {
     return id;
@@ -66,6 +72,14 @@ public class TransitionInstanceDto {
     return executionId;
   }
 
+  public String[] getIncidentIds() {
+    return incidentIds;
+  }
+
+  public ActivityInstanceIncidentDto[] getIncidents() {
+    return incidents;
+  }
+
   public static TransitionInstanceDto fromTransitionInstance(TransitionInstance instance) {
     TransitionInstanceDto result = new TransitionInstanceDto();
     result.id = instance.getId();
@@ -76,6 +90,8 @@ public class TransitionInstanceDto {
     result.processInstanceId = instance.getProcessInstanceId();
     result.processDefinitionId = instance.getProcessDefinitionId();
     result.executionId = instance.getExecutionId();
+    result.incidentIds = instance.getIncidentIds();
+    result.incidents = ActivityInstanceIncidentDto.fromIncidents(instance.getIncidents());
     return result;
   }
 

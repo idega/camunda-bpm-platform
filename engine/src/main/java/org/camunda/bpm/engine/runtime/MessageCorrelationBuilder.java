@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,6 +23,7 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.MismatchingMessageCorrelationException;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.variable.value.SerializableValue;
 
 /**
  * <p>A fluent builder for defining message correlation</p>
@@ -90,7 +95,7 @@ public interface MessageCorrelationBuilder {
 
   /**
    * <p>Correlate the message such that a process definition with the given id is selected.
-   * Is only supported for {@link #correlateStartMessage()}.</p>
+   * Is only supported for {@link #correlateStartMessage()} or {@link #startMessageOnly()} flag.</p>
    *
    * @param processDefinitionId the id of the process definition to correlate on.
    * @return the builder
@@ -161,6 +166,13 @@ public interface MessageCorrelationBuilder {
   MessageCorrelationBuilder withoutTenantId();
 
   /**
+   * Specify that only start message can be correlated.
+   *
+   * @return the builder
+   */
+  MessageCorrelationBuilder startMessageOnly();
+
+  /**
    * Executes the message correlation.
    *
    * @see {@link #correlateWithResult()}
@@ -196,6 +208,22 @@ public interface MessageCorrelationBuilder {
    * @since 7.6
    */
   MessageCorrelationResult correlateWithResult();
+
+  /**
+   * Executes the message correlation. If you do not need access to the process variables, use {@link #correlateWithResult()}
+   * to avoid unnecessary variable access.
+   *
+   * @see {@link #correlateWithResult()}
+   *
+   * @param deserializeValues if false, returned {@link SerializableValue}s
+   *   will not be deserialized (unless they are passed into this method as a
+   *   deserialized value or if the BPMN process triggers deserialization)
+   *
+   * @return The result of the message correlation. Result contains either the
+   *         execution id or the start event activity id, the process definition,
+   *         and the process variables.
+   */
+  MessageCorrelationResultWithVariables correlateWithResultAndVariables(boolean deserializeValues);
 
   /**
    * <p>
@@ -251,6 +279,22 @@ public interface MessageCorrelationBuilder {
    * @since 7.6
    */
   List<MessageCorrelationResult> correlateAllWithResult();
+
+  /**
+   * Executes the message correlation. If you do not need access to the process variables, use {@link #correlateAllWithResult()}
+   * to avoid unnecessary variable access.
+   *
+   * @see {@link #correlateAllWithResult()}
+   *
+   * @param deserializeValues if false, returned {@link SerializableValue}s
+   *   will not be deserialized (unless they are passed into this method as a
+   *   deserialized value or if the BPMN process triggers deserialization)
+   *
+   * @return The result list of the message correlations. Each result contains
+   *         either the execution id or the start event activity id, the process
+   *         definition, and the process variables.
+   */
+  List<MessageCorrelationResultWithVariables> correlateAllWithResultAndVariables(boolean deserializeValues);
 
   /**
    * Executes the message correlation.

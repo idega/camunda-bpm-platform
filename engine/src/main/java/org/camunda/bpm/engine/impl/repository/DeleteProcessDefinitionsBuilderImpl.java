@@ -1,11 +1,12 @@
 /*
- * Copyright 2017 camunda services GmbH.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.repository;
 
 import org.camunda.bpm.engine.exception.NullValueException;
@@ -49,6 +49,7 @@ public class DeleteProcessDefinitionsBuilderImpl implements DeleteProcessDefinit
   private String tenantId;
   private boolean isTenantIdSet;
   private boolean skipCustomListeners;
+  protected boolean skipIoMappings;
 
   public DeleteProcessDefinitionsBuilderImpl(CommandExecutor commandExecutor) {
     this.commandExecutor = commandExecutor;
@@ -96,14 +97,20 @@ public class DeleteProcessDefinitionsBuilderImpl implements DeleteProcessDefinit
   }
 
   @Override
+  public DeleteProcessDefinitionsBuilderImpl skipIoMappings() {
+    this.skipIoMappings = true;
+    return this;
+  }
+
+  @Override
   public void delete() {
     ensureOnlyOneNotNull(NullValueException.class, "'processDefinitionKey' or 'processDefinitionIds' cannot be null", processDefinitionKey, processDefinitionIds);
 
     Command<Void> command;
     if (processDefinitionKey != null) {
-      command = new DeleteProcessDefinitionsByKeyCmd(processDefinitionKey, cascade, skipCustomListeners, tenantId, isTenantIdSet);
+      command = new DeleteProcessDefinitionsByKeyCmd(processDefinitionKey, cascade, skipCustomListeners, skipIoMappings, tenantId, isTenantIdSet);
     } else if (processDefinitionIds != null && !processDefinitionIds.isEmpty()) {
-      command = new DeleteProcessDefinitionsByIdsCmd(processDefinitionIds, cascade, skipCustomListeners);
+      command = new DeleteProcessDefinitionsByIdsCmd(processDefinitionIds, cascade, skipCustomListeners, skipIoMappings);
     } else {
       return;
     }

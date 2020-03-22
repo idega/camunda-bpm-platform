@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +17,8 @@
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.camunda.bpm.engine.impl.calendar.BusinessCalendar;
 import org.camunda.bpm.engine.impl.calendar.CycleBusinessCalendar;
@@ -38,6 +44,8 @@ public class TimerEntity extends JobEntity {
 
   protected String repeat;
 
+  protected long repeatOffset;
+
   public TimerEntity() {
   }
 
@@ -50,6 +58,7 @@ public class TimerEntity extends JobEntity {
     jobHandlerType = te.jobHandlerType;
     isExclusive = te.isExclusive;
     repeat = te.repeat;
+    repeatOffset = te.repeatOffset;
     retries = te.retries;
     executionId = te.executionId;
     processInstanceId = te.processInstanceId;
@@ -59,6 +68,7 @@ public class TimerEntity extends JobEntity {
     processDefinitionId = te.processDefinitionId;
     processDefinitionKey = te.processDefinitionKey;
     tenantId = te.tenantId;
+    priority = te.priority;
   }
 
   @Override
@@ -109,7 +119,7 @@ public class TimerEntity extends JobEntity {
         .getProcessEngineConfiguration()
         .getBusinessCalendarManager()
         .getBusinessCalendar(CycleBusinessCalendar.NAME);
-    return businessCalendar.resolveDuedate(repeat);
+    return ((CycleBusinessCalendar) businessCalendar).resolveDuedate(repeat, null, repeatOffset);
   }
 
   public String getRepeat() {
@@ -120,9 +130,25 @@ public class TimerEntity extends JobEntity {
     this.repeat = repeat;
   }
 
+  public long getRepeatOffset() {
+    return repeatOffset;
+  }
+
+  public void setRepeatOffset(long repeatOffset) {
+    this.repeatOffset = repeatOffset;
+  }
+
   @Override
   public String getType() {
     return TYPE;
+  }
+
+  @Override
+  public Object getPersistentState() {
+    Map<String, Object> persistentState = (HashMap) super.getPersistentState();
+    persistentState.put("repeat", repeat);
+
+    return persistentState;
   }
 
   @Override
@@ -132,6 +158,7 @@ public class TimerEntity extends JobEntity {
            + ", id=" + id
            + ", revision=" + revision
            + ", duedate=" + duedate
+           + ", repeatOffset=" + repeatOffset
            + ", lockOwner=" + lockOwner
            + ", lockExpirationTime=" + lockExpirationTime
            + ", executionId=" + executionId

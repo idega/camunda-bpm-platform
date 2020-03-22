@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest.dto.batch;
 
 import org.camunda.bpm.engine.batch.Batch;
@@ -28,6 +31,7 @@ public class BatchDto {
   protected String batchJobDefinitionId;
   protected boolean suspended;
   protected String tenantId;
+  protected String createUserId;
 
   public String getId() {
     return id;
@@ -73,6 +77,10 @@ public class BatchDto {
     return tenantId;
   }
 
+  public String getCreateUserId() {
+    return createUserId;
+  }
+
   public static BatchDto fromBatch(Batch batch) {
     BatchDto dto = new BatchDto();
     dto.id = batch.getId();
@@ -86,6 +94,7 @@ public class BatchDto {
     dto.batchJobDefinitionId = batch.getBatchJobDefinitionId();
     dto.suspended = batch.isSuspended();
     dto.tenantId = batch.getTenantId();
+    dto.createUserId = batch.getCreateUserId();
     return dto;
   }
 

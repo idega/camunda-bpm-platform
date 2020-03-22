@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +18,13 @@ package org.camunda.bpm.engine.impl.bpmn.behavior;
 
 import java.util.Collection;
 
-import org.camunda.bpm.engine.delegate.TaskListener;
-import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
 import org.camunda.bpm.engine.impl.migration.instance.MigratingActivityInstance;
 import org.camunda.bpm.engine.impl.migration.instance.MigratingUserTaskInstance;
 import org.camunda.bpm.engine.impl.migration.instance.parser.MigratingInstanceParseContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity.TaskState;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.delegate.MigrationObserverBehavior;
@@ -49,16 +52,14 @@ public class UserTaskActivityBehavior extends TaskActivityBehavior implements Mi
 
   @Override
   public void performExecution(ActivityExecution execution) throws Exception {
-    TaskEntity task = TaskEntity.createAndInsert(execution);
+    TaskEntity task = new TaskEntity((ExecutionEntity) execution);
+    task.insert();
 
+    // initialize task properties
     taskDecorator.decorate(task, execution);
 
-    Context.getCommandContext()
-      .getHistoricTaskInstanceManager()
-      .createHistoricTask(task);
-
-    // All properties set, now firing 'create' event
-    task.fireEvent(TaskListener.EVENTNAME_CREATE);
+    // fire lifecycle events after task is initialized
+    task.transitionTo(TaskState.STATE_CREATED);
   }
 
   public void signal(ActivityExecution execution, String signalName, Object signalData) throws Exception {

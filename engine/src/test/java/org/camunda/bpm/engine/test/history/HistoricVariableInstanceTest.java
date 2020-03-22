@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.history;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
@@ -23,6 +26,7 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
 import org.camunda.bpm.engine.runtime.*;
 import org.camunda.bpm.engine.task.Task;
@@ -39,10 +43,12 @@ import org.camunda.bpm.engine.variable.value.ObjectValue;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Assert;
-
 import java.io.Serializable;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 
@@ -214,7 +220,6 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
     assertEquals(2, historyService.createHistoricVariableInstanceQuery().variableNameLike("myVar1").list().size());
     assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableNameLike("my\\_Var%").count());
     assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableNameLike("my\\_Var%").list().size());
-
     List<HistoricVariableInstance> variables = historyService.createHistoricVariableInstanceQuery().list();
     assertEquals(5, variables.size());
 
@@ -2332,5 +2337,115 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
     assertNotNull(historyVariable);
     assertEquals("initial", historyVariable.getName());
     assertEquals("bar", historyVariable.getValue());
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"})
+  public void testVariableCreateTime() throws ParseException {
+    // given
+    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+    Date fixedDate = sdf.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("stringVar", "test");
+    // when
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+
+    // then
+    HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
+    assertEquals(fixedDate, variable.getCreateTime());
+
+    // clean up
+    ClockUtil.setCurrentTime(new Date());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml" })
+  public void testVariableNameEqualsIgnoreCase() {
+    // given
+    Map<String, Object> variables = new HashMap<String, Object>();
+    String variableName = "variableName";
+    variables.put(variableName, "variableValue");
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+
+    // when
+    HistoricVariableInstance instance = historyService.createHistoricVariableInstanceQuery().variableName(variableName).singleResult();
+    HistoricVariableInstance instanceIgnoreCase = historyService.createHistoricVariableInstanceQuery().variableName(variableName.toLowerCase()).singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchIgnoreCase = historyService.createHistoricVariableInstanceQuery().variableName(variableName.toLowerCase())
+        .matchVariableNamesIgnoreCase().singleResult();
+
+    // then
+    assertThat(instance).isNotNull();
+    assertThat(instanceIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchIgnoreCase).isNotNull();
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml" })
+  public void testVariableValueEqualsIgnoreCase() {
+    // given
+    Map<String, Object> variables = new HashMap<String, Object>();
+    String variableName = "variableName";
+    String variableValue = "variableValue";
+    variables.put(variableName, variableValue);
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+
+    // when
+    HistoricVariableInstance instance = historyService.createHistoricVariableInstanceQuery().variableValueEquals(variableName, variableValue).singleResult();
+    HistoricVariableInstance instanceIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName, variableValue.toLowerCase()).singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName, variableValue.toLowerCase()).matchVariableValuesIgnoreCase().singleResult();
+
+    // then
+    assertThat(instance).isNotNull();
+    assertThat(instanceIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchIgnoreCase).isNotNull();
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml" })
+  public void testVariableNameAndValueEqualsIgnoreCase() {
+    // given
+    Map<String, Object> variables = new HashMap<String, Object>();
+    String variableName = "variableName";
+    String variableValue = "variableValue";
+    variables.put(variableName, variableValue);
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+
+    // when
+    HistoricVariableInstance instance = historyService.createHistoricVariableInstanceQuery().variableValueEquals(variableName, variableValue).singleResult();
+    HistoricVariableInstance instanceIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName.toLowerCase(), variableValue.toLowerCase()).singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchNameIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName.toLowerCase(), variableValue.toLowerCase()).matchVariableNamesIgnoreCase().singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchValueIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName.toLowerCase(), variableValue.toLowerCase()).matchVariableValuesIgnoreCase().singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchNameAndValueIgnoreCase = historyService.createHistoricVariableInstanceQuery()
+        .variableValueEquals(variableName.toLowerCase(), variableValue.toLowerCase()).matchVariableNamesIgnoreCase().matchVariableValuesIgnoreCase()
+        .singleResult();
+
+    // then
+    assertThat(instance).isNotNull();
+    assertThat(instanceIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchNameIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchValueIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchNameAndValueIgnoreCase).isNotNull();
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml" })
+  public void testVariableNameLikeIgnoreCase() {
+    // given
+    Map<String, Object> variables = new HashMap<String, Object>();
+    String variableName = "variableName";
+    String variableValue = "variableValue";
+    variables.put(variableName, variableValue);
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+    
+    // when
+    HistoricVariableInstance instance = historyService.createHistoricVariableInstanceQuery().variableNameLike("variableN%").singleResult();
+    HistoricVariableInstance instanceIgnoreCase = historyService.createHistoricVariableInstanceQuery().variableNameLike("variablen%").singleResult();
+    HistoricVariableInstance instanceIgnoreCaseMatchNameIgnoreCase = historyService.createHistoricVariableInstanceQuery().variableNameLike("variablen%").matchVariableNamesIgnoreCase().singleResult();
+
+    // then
+    assertThat(instance).isNotNull();
+    assertThat(instanceIgnoreCase).isNull();
+    assertThat(instanceIgnoreCaseMatchNameIgnoreCase).isNotNull();
   }
 }

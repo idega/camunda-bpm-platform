@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,7 +37,7 @@ public abstract class AbstractObjectValueSerializer extends AbstractSerializable
 
   public ObjectValue convertToTypedValue(UntypedValueImpl untypedValue) {
     // untyped values are always deserialized
-    return Variables.objectValue(untypedValue.getValue()).create();
+    return Variables.objectValue(untypedValue.getValue(), untypedValue.isTransient()).create();
   }
 
   protected void writeToValueFields(ObjectValue value, ValueFields valueFields, byte[] serializedValue) {
@@ -65,15 +69,21 @@ public abstract class AbstractObjectValueSerializer extends AbstractSerializable
     objectValue.setSerializationDataFormat(serializationDataFormat);
   }
 
-  protected ObjectValue createDeserializedValue(Object deserializedObject, String serializedStringValue, ValueFields valueFields) {
+  protected ObjectValue createDeserializedValue(Object deserializedObject, String serializedStringValue,
+      ValueFields valueFields, boolean asTransientValue) {
     String objectTypeName = readObjectNameFromFields(valueFields);
-    return new ObjectValueImpl(deserializedObject, serializedStringValue, serializationDataFormat, objectTypeName, true);
+    ObjectValueImpl objectValue = new ObjectValueImpl(deserializedObject, serializedStringValue, serializationDataFormat, objectTypeName, true);
+    objectValue.setTransient(asTransientValue);
+    return objectValue;
   }
 
 
-  protected ObjectValue createSerializedValue(String serializedStringValue, ValueFields valueFields) {
+  protected ObjectValue createSerializedValue(String serializedStringValue, ValueFields valueFields,
+      boolean asTransientValue) {
     String objectTypeName = readObjectNameFromFields(valueFields);
-    return new ObjectValueImpl(null, serializedStringValue, serializationDataFormat, objectTypeName, false);
+    ObjectValueImpl objectValue = new ObjectValueImpl(null, serializedStringValue, serializationDataFormat, objectTypeName, false);
+    objectValue.setTransient(asTransientValue);
+    return objectValue;
   }
 
   protected String readObjectNameFromFields(ValueFields valueFields) {

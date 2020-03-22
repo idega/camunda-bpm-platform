@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +20,7 @@ import java.net.URL;
 
 import org.camunda.bpm.application.impl.ProcessApplicationLogger;
 import org.camunda.bpm.container.impl.ContainerIntegrationLogger;
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.bpmn.behavior.BpmnBehaviorLogger;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParseLogger;
 import org.camunda.bpm.engine.impl.cfg.ConfigurationLogger;
@@ -29,11 +34,13 @@ import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.digest.SecurityLogger;
 import org.camunda.bpm.engine.impl.dmn.DecisionLogger;
 import org.camunda.bpm.engine.impl.externaltask.ExternalTaskLogger;
+import org.camunda.bpm.engine.impl.identity.IndentityLogger;
 import org.camunda.bpm.engine.impl.incident.IncidentLogger;
 import org.camunda.bpm.engine.impl.interceptor.ContextLogger;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorLogger;
 import org.camunda.bpm.engine.impl.metrics.MetricsLogger;
 import org.camunda.bpm.engine.impl.migration.MigrationLogger;
+import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.plugin.AdministratorAuthorizationPluginLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmLogger;
 import org.camunda.bpm.engine.impl.scripting.ScriptLogger;
@@ -126,6 +133,18 @@ public class ProcessEngineLogger extends BaseLogger {
   public static final IncidentLogger INCIDENT_LOGGER = BaseLogger.createLogger(
       IncidentLogger.class, PROJECT_CODE, "org.camunda.bpm.engine.incident", "26");
 
+  public static final IndentityLogger INDENTITY_LOGGER = BaseLogger.createLogger(
+      IndentityLogger.class, PROJECT_CODE, "org.camunda.bpm.engine.identity", "27");
+
+  public static boolean shouldLogJobException(ProcessEngineConfiguration processEngineConfiguration, JobEntity currentJob) {
+    boolean enableReducedJobExceptionLogging = processEngineConfiguration.isEnableReducedJobExceptionLogging();
+    return currentJob == null || !enableReducedJobExceptionLogging || enableReducedJobExceptionLogging && currentJob.getRetries() <= 1;
+  }
+
+  public static boolean shouldLogCmdException(ProcessEngineConfiguration processEngineConfiguration) {
+    return processEngineConfiguration.isEnableCmdExceptionLogging();
+  }
+
   public void processEngineCreated(String name) {
     logInfo("001", "Process Engine {} created.", name);
   }
@@ -162,6 +181,11 @@ public class ProcessEngineLogger extends BaseLogger {
       "History Cleanup Job reconfiguration failed on Process Engine Bootstrap. Possible concurrent execution with the JobExecutor: {}",
       exception.getMessage()
     );
+  }
+
+  public void couldNotDetermineIp(Exception e) {
+    logWarn(
+        "009", "Could not determine local IP address for generating a host name", e);
   }
 
 }

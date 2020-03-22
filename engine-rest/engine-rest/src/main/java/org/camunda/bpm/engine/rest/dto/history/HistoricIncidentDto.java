@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,13 +31,17 @@ public class HistoricIncidentDto {
   protected String processDefinitionId;
   protected String processInstanceId;
   protected String executionId;
+  protected String rootProcessInstanceId;
   protected Date createTime;
   protected Date endTime;
+  protected Date removalTime;
   protected String incidentType;
   protected String activityId;
+  protected String failedActivityId;
   protected String causeIncidentId;
   protected String rootCauseIncidentId;
   protected String configuration;
+  protected String historyConfiguration;
   protected String incidentMessage;
   protected String tenantId;
   protected String jobDefinitionId;
@@ -61,6 +69,10 @@ public class HistoricIncidentDto {
     return executionId;
   }
 
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public Date getCreateTime() {
     return createTime;
   }
@@ -69,12 +81,20 @@ public class HistoricIncidentDto {
     return endTime;
   }
 
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
   public String getIncidentType() {
     return incidentType;
   }
 
   public String getActivityId() {
     return activityId;
+  }
+
+  public String getFailedActivityId() {
+    return failedActivityId;
   }
 
   public String getCauseIncidentId() {
@@ -87,6 +107,10 @@ public class HistoricIncidentDto {
 
   public String getConfiguration() {
     return configuration;
+  }
+
+  public String getHistoryConfiguration() {
+    return historyConfiguration;
   }
 
   public String getIncidentMessage() {
@@ -124,16 +148,20 @@ public class HistoricIncidentDto {
     dto.createTime = historicIncident.getCreateTime();
     dto.endTime = historicIncident.getEndTime();
     dto.incidentType = historicIncident.getIncidentType();
+    dto.failedActivityId = historicIncident.getFailedActivityId();
     dto.activityId = historicIncident.getActivityId();
     dto.causeIncidentId = historicIncident.getCauseIncidentId();
     dto.rootCauseIncidentId = historicIncident.getRootCauseIncidentId();
     dto.configuration = historicIncident.getConfiguration();
+    dto.historyConfiguration = historicIncident.getHistoryConfiguration();
     dto.incidentMessage = historicIncident.getIncidentMessage();
     dto.open = historicIncident.isOpen();
     dto.deleted = historicIncident.isDeleted();
     dto.resolved = historicIncident.isResolved();
     dto.tenantId = historicIncident.getTenantId();
     dto.jobDefinitionId = historicIncident.getJobDefinitionId();
+    dto.removalTime = historicIncident.getRemovalTime();
+    dto.rootProcessInstanceId = historicIncident.getRootProcessInstanceId();
 
     return dto;
   }

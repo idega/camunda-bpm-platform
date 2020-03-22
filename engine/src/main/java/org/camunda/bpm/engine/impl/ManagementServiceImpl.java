@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +22,7 @@ import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.batch.BatchQuery;
 import org.camunda.bpm.engine.batch.BatchStatisticsQuery;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.batch.BatchQueryImpl;
 import org.camunda.bpm.engine.impl.batch.BatchStatisticsQueryImpl;
 import org.camunda.bpm.engine.impl.batch.DeleteBatchCmd;
@@ -37,6 +42,7 @@ import org.camunda.bpm.engine.management.DeploymentStatisticsQuery;
 import org.camunda.bpm.engine.management.JobDefinitionQuery;
 import org.camunda.bpm.engine.management.MetricsQuery;
 import org.camunda.bpm.engine.management.ProcessDefinitionStatisticsQuery;
+import org.camunda.bpm.engine.management.SchemaLogQuery;
 import org.camunda.bpm.engine.management.TableMetaData;
 import org.camunda.bpm.engine.management.TablePageQuery;
 import org.camunda.bpm.engine.management.UpdateJobDefinitionSuspensionStateSelectBuilder;
@@ -122,7 +128,16 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
 
   @Override
   public Batch setJobRetriesAsync(List<String> processInstanceIds, ProcessInstanceQuery query, int retries) {
-    return commandExecutor.execute(new SetJobsRetriesByProcessBatchCmd(processInstanceIds, query, retries));
+    return commandExecutor.execute(new SetJobsRetriesByProcessBatchCmd(processInstanceIds, query,
+        null, retries));
+  }
+
+  @Override
+  public Batch setJobRetriesAsync(List<String> processInstanceIds, ProcessInstanceQuery query,
+                                  HistoricProcessInstanceQuery historicProcessInstanceQuery,
+                                  int retries) {
+    return commandExecutor.execute(new SetJobsRetriesByProcessBatchCmd(processInstanceIds, query,
+        historicProcessInstanceQuery, retries));
   }
 
   public void setJobRetriesByJobDefinitionId(String jobDefinitionId, int retries) {
@@ -130,7 +145,15 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
   }
 
   public void setJobDuedate(String jobId, Date newDuedate) {
-    commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate));
+    setJobDuedate(jobId, newDuedate, false);
+  }
+  
+  public void setJobDuedate(String jobId, Date newDuedate, boolean cascade) {
+    commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate, cascade));
+  }
+
+  public void recalculateJobDuedate(String jobId, boolean creationDateBased) {
+    commandExecutor.execute(new RecalculateJobDuedateCmd(jobId, creationDateBased));
   }
 
   public void setJobPriority(String jobId, long priority) {
@@ -165,12 +188,24 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
     commandExecutor.execute(new DeletePropertyCmd(name));
   }
 
+  public void setLicenseKey(String licenseKey) {
+    commandExecutor.execute(new SetLicenseKeyCmd(licenseKey));
+  }
+
+  public String getLicenseKey() {
+    return commandExecutor.execute(new GetLicenseKeyCmd());
+  }
+
+  public void deleteLicenseKey() {
+    commandExecutor.execute(new DeleteLicenseKeyCmd(true));
+  }
+
   public String databaseSchemaUpgrade(final Connection connection, final String catalog, final String schema) {
     return commandExecutor.execute(new Command<String>() {
       public String execute(CommandContext commandContext) {
         commandContext.getAuthorizationManager().checkCamundaAdmin();
         DbSqlSessionFactory dbSqlSessionFactory = (DbSqlSessionFactory) commandContext.getSessionFactories().get(DbSqlSession.class);
-        DbSqlSession dbSqlSession = new DbSqlSession(dbSqlSessionFactory, connection, catalog, schema);
+        DbSqlSession dbSqlSession = dbSqlSessionFactory.openSession(connection, catalog, schema);
         commandContext.getSessions().put(DbSqlSession.class, dbSqlSession);
         dbSqlSession.dbSchemaUpdate();
 
@@ -204,7 +239,7 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
       public Set<String> execute(CommandContext commandContext) {
         commandContext.getAuthorizationManager().checkCamundaAdmin();
         Set<String> registeredDeployments = Context.getProcessEngineConfiguration().getRegisteredDeployments();
-        return new HashSet<String>(registeredDeployments);
+        return new HashSet<>(registeredDeployments);
       }
     });
   }
@@ -465,4 +500,7 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
     return new BatchStatisticsQueryImpl(commandExecutor);
   }
 
+  public SchemaLogQuery createSchemaLogQuery() {
+    return new SchemaLogQueryImpl(commandExecutor);
+  }
 }

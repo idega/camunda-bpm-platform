@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -109,7 +113,7 @@ public class HistoricExternalTaskLogTest {
       .singleResult();
 
     // then
-    assertHistoricLogPropertiesAreProperlySet(task, log);
+    assertHistoricLogPropertiesAreProperlySet(task, null, log);
     assertEquals(WORKER_ID, log.getWorkerId());
     assertLogIsInFailedState(log);
 
@@ -301,6 +305,10 @@ public class HistoricExternalTaskLogTest {
   }
 
   protected void assertHistoricLogPropertiesAreProperlySet(ExternalTask task, HistoricExternalTaskLog log) {
+    assertHistoricLogPropertiesAreProperlySet(task, task.getRetries(), log);
+  }
+
+  protected void assertHistoricLogPropertiesAreProperlySet(ExternalTask task, Integer retries, HistoricExternalTaskLog log) {
     assertNotNull(log);
     assertNotNull(log.getId());
     assertNotNull(log.getTimestamp());
@@ -309,7 +317,7 @@ public class HistoricExternalTaskLogTest {
     assertEquals(task.getActivityId(), log.getActivityId());
     assertEquals(task.getActivityInstanceId(), log.getActivityInstanceId());
     assertEquals(task.getTopicName(), log.getTopicName());
-    assertEquals(task.getRetries(), log.getRetries());
+    assertEquals(retries, log.getRetries());
     assertEquals(task.getExecutionId(), log.getExecutionId());
     assertEquals(task.getProcessInstanceId(), log.getProcessInstanceId());
     assertEquals(task.getProcessDefinitionId(), log.getProcessDefinitionId());

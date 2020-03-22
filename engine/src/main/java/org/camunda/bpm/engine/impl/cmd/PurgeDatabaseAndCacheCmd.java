@@ -1,20 +1,19 @@
 /*
- * Copyright 2016 camunda services GmbH.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.cmd;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -28,7 +27,7 @@ import org.camunda.bpm.engine.impl.management.DatabasePurgeReport;
 import org.camunda.bpm.engine.impl.management.PurgeReport;
 import org.camunda.bpm.engine.impl.persistence.deploy.cache.CachePurgeReport;
 import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
-
+import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -51,7 +50,8 @@ public class PurgeDatabaseAndCacheCmd implements Command<PurgeReport>, Serializa
   protected static final String EMPTY_STRING = "";
 
   public static final List<String> TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK = Arrays.asList(
-    "ACT_GE_PROPERTY"
+    "ACT_GE_PROPERTY",
+    "ACT_GE_SCHEMA_LOG"
   );
 
   @Override
@@ -79,7 +79,7 @@ public class PurgeDatabaseAndCacheCmd implements Command<PurgeReport>, Serializa
     List<String> tablesNames = dbEntityManager.getTableNamesPresentInDatabase();
     String databaseTablePrefix = commandContext.getProcessEngineConfiguration().getDatabaseTablePrefix().trim();
 
-    //for each table
+    // for each table
     DatabasePurgeReport databasePurgeReport = new DatabasePurgeReport();
     for (String tableName : tablesNames) {
       String tableNameWithoutPrefix = tableName.replace(databaseTablePrefix, EMPTY_STRING);
@@ -91,6 +91,17 @@ public class PurgeDatabaseAndCacheCmd implements Command<PurgeReport>, Serializa
         Long count = (Long) dbEntityManager.selectOne(SELECT_TABLE_COUNT, param);
 
         if (count > 0) {
+          // allow License Key in byte array table
+          if (tableNameWithoutPrefix.equals("ACT_GE_BYTEARRAY") && commandContext.getResourceManager().findLicenseKeyResource() != null) {
+            if (count != 1) {
+              DbBulkOperation purgeByteArrayPreserveLicenseKeyBulkOp = new DbBulkOperation(DbOperationType.DELETE_BULK, ByteArrayEntity.class,
+                  "purgeTablePreserveLicenseKey", LicenseCmd.LICENSE_KEY_BYTE_ARRAY_ID);
+              databasePurgeReport.addPurgeInformation(tableName, count - 1);
+              dbEntityManager.getDbOperationManager().addOperation(purgeByteArrayPreserveLicenseKeyBulkOp);
+            }
+            databasePurgeReport.setDbContainsLicenseKey(true);
+            continue;
+          }
           databasePurgeReport.addPurgeInformation(tableName, count);
           // Get corresponding entity classes for the table, which contains data
           List<Class<? extends DbEntity>> entities = commandContext.getTableDataManager().getEntities(tableName);

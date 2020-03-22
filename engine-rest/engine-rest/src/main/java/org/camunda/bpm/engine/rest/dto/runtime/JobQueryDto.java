@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,6 +79,7 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
   protected Boolean messages;
   protected Boolean withException;
   protected String exceptionMessage;
+  protected String failedActivityId;
   protected Boolean noRetriesLeft;
   protected Boolean active;
   protected Boolean suspended;
@@ -86,6 +91,7 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
   protected Boolean includeJobsWithoutTenantId;
 
   protected List<ConditionQueryParameterDto> dueDates;
+  protected List<ConditionQueryParameterDto> createTimes;
 
   public JobQueryDto() {}
 
@@ -96,6 +102,11 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
   @CamundaQueryParam("activityId")
   public void setActivityId(String activityId) {
     this.activityId = activityId;
+  }
+
+  @CamundaQueryParam("failedActivityId")
+  public void setFailedActivityId(String activityId) {
+    this.failedActivityId = activityId;
   }
 
   @CamundaQueryParam("jobId")
@@ -158,6 +169,11 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
     this.dueDates = dueDates;
   }
 
+  @CamundaQueryParam(value = "createTimes", converter = ConditionListConverter.class)
+  public void setCreateTimes(List<ConditionQueryParameterDto> createTimes) {
+    this.createTimes = createTimes;
+  }
+
   @CamundaQueryParam(value="noRetriesLeft", converter = BooleanConverter.class)
   public void setNoRetriesLeft(Boolean noRetriesLeft) {
     this.noRetriesLeft = noRetriesLeft;
@@ -213,8 +229,43 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
     return engine.getManagementService().createJobQuery();
   }
 
+  private abstract class ApplyDates {
+    void run(List<ConditionQueryParameterDto> dates) {
+      DateConverter dateConverter = new DateConverter();
+      dateConverter.setObjectMapper(objectMapper);
+
+      for (ConditionQueryParameterDto conditionQueryParam : dates) {
+        String op = conditionQueryParam.getOperator();
+        Date date;
+
+        try {
+          date = dateConverter.convertQueryParameterToType((String) conditionQueryParam.getValue());
+        } catch (RestException e) {
+          throw new InvalidRequestException(e.getStatus(), e, "Invalid " + fieldName() + " format: " + e.getMessage());
+        }
+
+        if (op.equals(ConditionQueryParameterDto.GREATER_THAN_OPERATOR_NAME)) {
+          setGreaterThan(date);
+        } else if (op.equals(ConditionQueryParameterDto.LESS_THAN_OPERATOR_NAME)) {
+          setLowerThan(date);
+        } else {
+          throw new InvalidRequestException(Status.BAD_REQUEST, "Invalid " + fieldName() + " comparator specified: " + op);
+        }
+      }
+    }
+
+    /**
+     * @return a descriptive name of the target field, used in error-messages
+     */
+    abstract String fieldName();
+
+    abstract void setGreaterThan(Date date);
+
+    abstract void setLowerThan(Date date);
+  }
+
   @Override
-  protected void applyFilters(JobQuery query) {
+  protected void applyFilters(final JobQuery query) {
     if (activityId != null){
       query.activityId(activityId);
     }
@@ -269,6 +320,10 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
       query.exceptionMessage(exceptionMessage);
     }
 
+    if (failedActivityId != null) {
+      query.failedActivityId(failedActivityId);
+    }
+
     if (TRUE.equals(noRetriesLeft)) {
       query.noRetriesLeft();
     }
@@ -294,27 +349,41 @@ public class JobQueryDto extends AbstractQueryDto<JobQuery> {
     }
 
     if (dueDates != null) {
-      DateConverter dateConverter = new DateConverter();
-      dateConverter.setObjectMapper(objectMapper);
-
-      for (ConditionQueryParameterDto conditionQueryParam : dueDates) {
-        String op = conditionQueryParam.getOperator();
-        Date dueDate = null;
-
-        try {
-          dueDate = dateConverter.convertQueryParameterToType((String) conditionQueryParam.getValue());
-        } catch (RestException e) {
-          throw new InvalidRequestException(e.getStatus(), e, "Invalid due date format: " + e.getMessage());
+      new ApplyDates() {
+        @Override
+        void setGreaterThan(Date date) {
+          query.duedateHigherThan(date);
         }
 
-        if (op.equals(ConditionQueryParameterDto.GREATER_THAN_OPERATOR_NAME)) {
-          query.duedateHigherThan(dueDate);
-        } else if (op.equals(ConditionQueryParameterDto.LESS_THAN_OPERATOR_NAME)) {
-          query.duedateLowerThan(dueDate);
-        } else {
-          throw new InvalidRequestException(Status.BAD_REQUEST, "Invalid due date comparator specified: " + op);
+        @Override
+        void setLowerThan(Date date) {
+          query.duedateLowerThan(date);
         }
-      }
+
+        @Override
+        String fieldName() {
+          return "due date";
+        }
+      }.run(dueDates);
+    }
+
+    if (createTimes != null) {
+      new ApplyDates() {
+        @Override
+        void setGreaterThan(Date date) {
+          query.createdAfter(date);
+        }
+
+        @Override
+        void setLowerThan(Date date) {
+          query.createdBefore(date);
+        }
+
+        @Override
+        String fieldName() {
+          return "create time";
+        }
+      }.run(createTimes);
     }
 
     if (tenantIds != null && !tenantIds.isEmpty()) {

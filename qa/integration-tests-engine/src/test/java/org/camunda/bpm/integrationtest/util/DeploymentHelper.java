@@ -1,11 +1,12 @@
-/**
- * Copyright (C) 2011, 2012 camunda services GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -109,6 +110,10 @@ public class DeploymentHelper {
           .addDependencies(
               MavenDependencies.createDependency("org.camunda.bpm:camunda-engine-spring", ScopeType.COMPILE, false,
                   MavenDependencies.createExclusion("org.camunda.bpm:camunda-engine")),
+                  MavenDependencies.createDependency("org.springframework:spring-context", ScopeType.COMPILE, false),
+                  MavenDependencies.createDependency("org.springframework:spring-jdbc", ScopeType.COMPILE, false),
+                  MavenDependencies.createDependency("org.springframework:spring-tx", ScopeType.COMPILE, false),
+                  MavenDependencies.createDependency("org.springframework:spring-orm", ScopeType.COMPILE, false),
                   MavenDependencies.createDependency("org.springframework:spring-web", ScopeType.COMPILE, false))
           .resolve()
           .withTransitivity()
@@ -139,7 +144,7 @@ public class DeploymentHelper {
     } else if (server.equals("websphere")) {
       return Maven.configureResolver()
         .workOffline()
-        .loadPomFromFile("pom.xml", "was80")
+        .loadPomFromFile("pom.xml", "was85")
         .resolve("com.fasterxml.jackson.datatype:jackson-datatype-joda")
         .using(new RejectDependenciesStrategy(false,
           "joda-time:joda-time"))
@@ -176,7 +181,7 @@ public class DeploymentHelper {
     } else if (server.equals("websphere")) {
       return Maven.configureResolver()
         .workOffline()
-        .loadPomFromFile("pom.xml", "was80")
+        .loadPomFromFile("pom.xml", "was85")
         .resolve("org.camunda.spin:camunda-spin-dataformat-json-jackson")
         .using(new RejectDependenciesStrategy(false,
           "org.camunda.spin:camunda-spin-core",

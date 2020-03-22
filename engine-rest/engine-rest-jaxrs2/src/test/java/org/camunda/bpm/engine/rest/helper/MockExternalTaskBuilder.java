@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +37,7 @@ public class MockExternalTaskBuilder {
   protected Date lockExpirationTime;
   protected String processDefinitionId;
   protected String processDefinitionKey;
+  protected String processDefinitionVersionTag;
   protected String processInstanceId;
   protected Integer retries;
   protected boolean suspended;
@@ -79,6 +84,11 @@ public class MockExternalTaskBuilder {
 
   public MockExternalTaskBuilder processDefinitionKey(String processDefinitionKey) {
     this.processDefinitionKey = processDefinitionKey;
+    return this;
+  }
+
+  public MockExternalTaskBuilder processDefinitionVersionTag(String processDefinitionVersionTag) {
+    this.processDefinitionVersionTag = processDefinitionVersionTag;
     return this;
   }
 
@@ -132,6 +142,7 @@ public class MockExternalTaskBuilder {
     when(task.getLockExpirationTime()).thenReturn(lockExpirationTime);
     when(task.getProcessDefinitionId()).thenReturn(processDefinitionId);
     when(task.getProcessDefinitionKey()).thenReturn(processDefinitionKey);
+    when(task.getProcessDefinitionVersionTag()).thenReturn(processDefinitionVersionTag);
     when(task.getProcessInstanceId()).thenReturn(processInstanceId);
     when(task.getRetries()).thenReturn(retries);
     when(task.isSuspended()).thenReturn(suspended);
@@ -153,6 +164,7 @@ public class MockExternalTaskBuilder {
     when(task.getLockExpirationTime()).thenReturn(lockExpirationTime);
     when(task.getProcessDefinitionId()).thenReturn(processDefinitionId);
     when(task.getProcessDefinitionKey()).thenReturn(processDefinitionKey);
+    when(task.getProcessDefinitionVersionTag()).thenReturn(processDefinitionVersionTag);
     when(task.getProcessInstanceId()).thenReturn(processInstanceId);
     when(task.getRetries()).thenReturn(retries);
     when(task.getTopicName()).thenReturn(topicName);

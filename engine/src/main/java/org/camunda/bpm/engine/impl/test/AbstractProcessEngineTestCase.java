@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.test;
 
 import java.util.ArrayList;
@@ -69,7 +72,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
   protected ProcessEngine processEngine;
 
   protected String deploymentId;
-  protected Set<String> deploymentIds = new HashSet<String>();
+  protected Set<String> deploymentIds = new HashSet<>();
 
   protected Throwable exception;
 
@@ -103,8 +106,9 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     try {
 
       boolean hasRequiredHistoryLevel = TestHelper.annotationRequiredHistoryLevelCheck(processEngine, getClass(), getName());
-      // ignore test case when current history level is too low
-      if (hasRequiredHistoryLevel) {
+      boolean runsWithRequiredDatabase = TestHelper.annotationRequiredDatabaseCheck(processEngine, getClass(), getName());
+      // ignore test case when current history level is too low or database doesn't match
+      if (hasRequiredHistoryLevel && runsWithRequiredDatabase) {
 
         deploymentId = TestHelper.annotationDeploymentSetUp(processEngine, getClass(), getName());
 
@@ -145,7 +149,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     }
   }
 
-  private void deleteHistoryCleanupJobs() {
+  protected void deleteHistoryCleanupJobs() {
     final List<Job> jobs = historyService.findHistoryCleanupJobs();
     for (final Job job: jobs) {
       processEngineConfiguration.getCommandExecutorTxRequired().execute(new Command<Void>() {
@@ -324,7 +328,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
    * Execute all available jobs recursively till no more jobs found.
    */
   public void executeAvailableJobs() {
-    executeAvailableJobs(0, Integer.MAX_VALUE, true);
+    executeAvailableJobs(0, Integer.MAX_VALUE, true, true);
   }
 
   /**
@@ -337,10 +341,14 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
    * @see #executeAvailableJobs()
    */
   public void executeAvailableJobs(int expectedExecutions){
-    executeAvailableJobs(0, expectedExecutions, false);
+    executeAvailableJobs(0, expectedExecutions, false, true);
   }
 
-  private void executeAvailableJobs(int jobsExecuted, int expectedExecutions, boolean ignoreLessExecutions) {
+  public void executeAvailableJobs(boolean recursive){
+    executeAvailableJobs(0, Integer.MAX_VALUE, true, recursive);
+  }
+
+  private void executeAvailableJobs(int jobsExecuted, int expectedExecutions, boolean ignoreLessExecutions, boolean recursive) {
     List<Job> jobs = managementService.createJobQuery().withRetriesLeft().list();
 
     if (jobs.isEmpty()) {
@@ -359,7 +367,9 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     assertTrue("executed more jobs than expected. expected <" + expectedExecutions + "> actual <" + jobsExecuted + ">",
         jobsExecuted <= expectedExecutions);
 
-    executeAvailableJobs(jobsExecuted, expectedExecutions, ignoreLessExecutions);
+    if (recursive) {
+      executeAvailableJobs(jobsExecuted, expectedExecutions, ignoreLessExecutions, recursive);
+    }
   }
 
   public boolean areJobsAvailable() {
@@ -394,7 +404,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
   }
 
   protected List<ActivityInstance> getInstancesForActivityId(ActivityInstance activityInstance, String activityId) {
-    List<ActivityInstance> result = new ArrayList<ActivityInstance>();
+    List<ActivityInstance> result = new ArrayList<>();
     if(activityInstance.getActivityId().equals(activityId)) {
       result.add(activityInstance);
     }

@@ -1,9 +1,12 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.calendar;
 
 import java.util.ArrayList;
@@ -33,7 +35,9 @@ import org.camunda.bpm.engine.impl.util.EngineUtilLogger;
  */
 public class DurationHelper {
 
-  private final static EngineUtilLogger LOG = ProcessEngineLogger.UTIL_LOGGER;
+  public static final String PnW_PATTERN = "P\\d+W";
+  private static final int MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+  private static final EngineUtilLogger LOG = ProcessEngineLogger.UTIL_LOGGER;
 
   Date start;
 
@@ -45,9 +49,15 @@ public class DurationHelper {
 
   int times;
 
+  long repeatOffset;
+
   DatatypeFactory datatypeFactory;
 
   public DurationHelper(String expressions) throws Exception {
+    this(expressions, null);
+  }
+  
+  public DurationHelper(String expressions, Date startDate) throws Exception {
     List<String> expression = new ArrayList<String>();
     if(expressions != null) {
       expression = Arrays.asList(expressions.split("/"));
@@ -76,14 +86,17 @@ public class DurationHelper {
       }
     }
     if (start == null && end == null) {
-      start = ClockUtil.getCurrentTime();
+      start = startDate == null ? ClockUtil.getCurrentTime() : startDate;
     }
-
   }
 
   public Date getDateAfter() {
+    return getDateAfter(null);
+  }
+  
+  public Date getDateAfter(Date date) {
     if (isRepeat) {
-      return getDateAfterRepeat(ClockUtil.getCurrentTime());
+      return getDateAfterRepeat(date == null ? ClockUtil.getCurrentTime() : date);
     }
     //TODO: is this correct?
     if (end != null) {
@@ -101,12 +114,19 @@ public class DurationHelper {
   }
 
   private Date getDateAfterRepeat(Date date) {
+    // use date without the current offset for due date calculation to get the
+    // next due date as it would be without any modifications, later add offset
+    Date dateWithoutOffset = new Date(date.getTime() - repeatOffset);
     if (start != null) {
       Date cur = start;
-      for (int i=0;i<times && !cur.after(date);i++) {
+      for (int i = 0; i < times && !cur.after(dateWithoutOffset); i++) {
         cur = add(cur, period);
       }
-      return cur.before(date) ? null : cur;
+      if (cur.before(dateWithoutOffset)) {
+        return null;
+      }
+      // add offset to calculated due date
+      return repeatOffset == 0L ? cur : new Date(cur.getTime() + repeatOffset);
     }
     Date cur = add(end, period.negate());
     Date next = end;
@@ -126,11 +146,24 @@ public class DurationHelper {
   }
 
   private Duration parsePeriod(String period) {
+    if (period.matches(PnW_PATTERN)) {
+      return parsePnWDuration(period);
+    }
     return datatypeFactory.newDuration(period);
+  }
+
+  private Duration parsePnWDuration(String period) {
+    String weeks = period.replaceAll("\\D", "");
+    int numberOfWeeks = Integer.parseInt(weeks);
+    return datatypeFactory.newDuration(numberOfWeeks * MS_PER_WEEK);
   }
 
   private boolean isDuration(String time) {
     return time.startsWith("P");
+  }
+
+  public void setRepeatOffset(long repeatOffset) {
+    this.repeatOffset = repeatOffset;
   }
 
 }

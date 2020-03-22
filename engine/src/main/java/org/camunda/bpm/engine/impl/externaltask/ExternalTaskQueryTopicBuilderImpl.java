@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,8 +45,6 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
 
   protected Map<String, TopicFetchInstruction> instructions;
 
-  protected boolean filterByBusinessKey;
-
   protected TopicFetchInstruction currentInstruction;
 
   public ExternalTaskQueryTopicBuilderImpl(CommandExecutor commandExecutor, String workerId, int maxTasks, boolean usePriority) {
@@ -50,13 +52,12 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     this.workerId = workerId;
     this.maxTasks = maxTasks;
     this.usePriority = usePriority;
-    this.filterByBusinessKey = false;
     this.instructions = new HashMap<String, TopicFetchInstruction>();
   }
 
   public List<LockedExternalTask> execute() {
     submitCurrentInstruction();
-    return commandExecutor.execute(new FetchExternalTasksCmd(workerId, maxTasks, instructions, filterByBusinessKey, usePriority));
+    return commandExecutor.execute(new FetchExternalTasksCmd(workerId, maxTasks, instructions, usePriority));
   }
 
   public ExternalTaskQueryTopicBuilder topic(String topicName, long lockDuration) {
@@ -90,8 +91,42 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
   }
 
   public ExternalTaskQueryTopicBuilder businessKey(String businessKey) {
-    this.filterByBusinessKey = true;
     currentInstruction.setBusinessKey(businessKey);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processDefinitionId(String processDefinitionId) {
+    currentInstruction.setProcessDefinitionId(processDefinitionId);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processDefinitionIdIn(String... processDefinitionIds) {
+    currentInstruction.setProcessDefinitionIds(processDefinitionIds);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processDefinitionKey(String processDefinitionKey) {
+    currentInstruction.setProcessDefinitionKey(processDefinitionKey);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processDefinitionKeyIn(String... processDefinitionKeys) {
+    currentInstruction.setProcessDefinitionKeys(processDefinitionKeys);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder processDefinitionVersionTag(String processDefinitionVersionTag) {
+    currentInstruction.setProcessDefinitionVersionTag(processDefinitionVersionTag);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder withoutTenantId() {
+    currentInstruction.setTenantIds(null);
+    return this;
+  }
+
+  public ExternalTaskQueryTopicBuilder tenantIdIn(String... tenantIds) {
+    currentInstruction.setTenantIds(tenantIds);
     return this;
   }
 
@@ -110,6 +145,5 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     currentInstruction.setLocalVariables(true);
     return this;
   }
-
 
 }

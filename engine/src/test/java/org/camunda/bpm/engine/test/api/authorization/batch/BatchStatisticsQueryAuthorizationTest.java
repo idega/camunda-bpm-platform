@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,6 +15,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.test.api.authorization.batch;
+
+import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
 import java.util.List;
@@ -51,6 +57,7 @@ public class BatchStatisticsQueryAuthorizationTest {
   protected MigrationPlan migrationPlan;
   protected Batch batch1;
   protected Batch batch2;
+  protected Batch batch3;
 
   @Before
   public void setUp() {
@@ -59,14 +66,7 @@ public class BatchStatisticsQueryAuthorizationTest {
 
   @Before
   public void deployProcessesAndCreateMigrationPlan() {
-    ProcessDefinition sourceDefinition = testHelper.deployAndGetDefinition(ProcessModels.ONE_TASK_PROCESS);
-    ProcessDefinition targetDefinition = testHelper.deployAndGetDefinition(ProcessModels.ONE_TASK_PROCESS);
-
-    migrationPlan = engineRule.getRuntimeService().createMigrationPlan(sourceDefinition.getId(), targetDefinition.getId())
-      .mapEqualActivities()
-      .build();
-
-    ProcessInstance pi = engineRule.getRuntimeService().startProcessInstanceById(sourceDefinition.getId());
+    ProcessInstance pi = createMigrationPlan();
 
     batch1 = engineRule.getRuntimeService()
       .newMigration(migrationPlan)
@@ -91,6 +91,9 @@ public class BatchStatisticsQueryAuthorizationTest {
   public void deleteBatches() {
     engineRule.getManagementService().deleteBatch(batch1.getId(), true);
     engineRule.getManagementService().deleteBatch(batch2.getId(), true);
+    if (batch3 != null) {
+      engineRule.getManagementService().deleteBatch(batch3.getId(), true);
+    }
   }
 
   @Test
@@ -165,5 +168,38 @@ public class BatchStatisticsQueryAuthorizationTest {
 
     // then
     Assert.assertEquals(2, batches.size());
+  }
+
+  @Test
+  public void testBatchStatisticsAndCreateUserId() {
+    // given
+    ProcessInstance pi = createMigrationPlan();
+
+    // when
+    authRule.createGrantAuthorization(Resources.BATCH, "*", "userId", Permissions.CREATE);
+    authRule.createGrantAuthorization(Resources.PROCESS_DEFINITION, "*", "userId", Permissions.MIGRATE_INSTANCE);
+
+    authRule.enableAuthorization("userId");
+    batch3 = engineRule.getRuntimeService()
+      .newMigration(migrationPlan)
+      .processInstanceIds(Arrays.asList(pi.getId()))
+      .executeAsync();
+    authRule.disableAuthorization();
+
+    // then
+    BatchStatistics batchStatistics = engineRule.getManagementService().createBatchStatisticsQuery().batchId(batch3.getId()).singleResult();
+    assertEquals("userId", batchStatistics.getCreateUserId());
+  }
+
+  protected ProcessInstance createMigrationPlan() {
+    ProcessDefinition sourceDefinition = testHelper.deployAndGetDefinition(ProcessModels.ONE_TASK_PROCESS);
+    ProcessDefinition targetDefinition = testHelper.deployAndGetDefinition(ProcessModels.ONE_TASK_PROCESS);
+
+    migrationPlan = engineRule.getRuntimeService().createMigrationPlan(sourceDefinition.getId(), targetDefinition.getId())
+        .mapEqualActivities()
+        .build();
+
+    ProcessInstance pi = engineRule.getRuntimeService().startProcessInstanceById(sourceDefinition.getId());
+    return pi;
   }
 }

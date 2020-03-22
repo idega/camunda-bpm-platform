@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,9 +16,9 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -36,6 +40,8 @@ import org.camunda.bpm.engine.authorization.AuthorizationQuery;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.impl.AuthorizationServiceImpl;
 import org.camunda.bpm.engine.impl.IdentityServiceImpl;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.cfg.auth.DefaultPermissionProvider;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
@@ -45,9 +51,9 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.InOrder;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
-import com.jayway.restassured.specification.RequestSpecification;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
+import io.restassured.specification.RequestSpecification;
 
 /**
  * @author Daniel Meyer
@@ -60,6 +66,7 @@ public class AuthorizationRestServiceQueryTest extends AbstractRestServiceTest {
 
   protected AuthorizationService authorizationServiceMock;
   protected IdentityService identityServiceMock;
+  protected ProcessEngineConfigurationImpl processEngineConfigurationMock;
 
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
@@ -68,9 +75,12 @@ public class AuthorizationRestServiceQueryTest extends AbstractRestServiceTest {
   public void setUpRuntimeData() {
     authorizationServiceMock = mock(AuthorizationServiceImpl.class);
     identityServiceMock = mock(IdentityServiceImpl.class);
+    processEngineConfigurationMock = mock(ProcessEngineConfigurationImpl.class);
 
     when(processEngine.getAuthorizationService()).thenReturn(authorizationServiceMock);
     when(processEngine.getIdentityService()).thenReturn(identityServiceMock);
+    when(processEngine.getProcessEngineConfiguration()).thenReturn(processEngineConfigurationMock);
+    when(processEngineConfigurationMock.getPermissionProvider()).thenReturn(new DefaultPermissionProvider());
   }
 
   private AuthorizationQuery setUpMockQuery(List<Authorization> list) {

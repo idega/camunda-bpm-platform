@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,7 +34,7 @@ import javax.ws.rs.core.Response.Status;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -448,6 +452,26 @@ public class SignalRestServiceTest extends AbstractRestServiceTest {
       .expect()
         .statusCode(Status.INTERNAL_SERVER_ERROR.getStatusCode())
         .body("type", equalTo(ProcessEngineException.class.getSimpleName()))
+        .body("message", equalTo(message))
+    .when()
+      .post(SIGNAL_URL);
+  }
+
+  @Test
+  public void shouldReturnInternalServerErrorResponseJsonWithTypeAndMessage() {
+    String message = "expected exception";
+    doThrow(new IllegalArgumentException(message)).when(signalBuilderMock).send();
+
+    Map<String, Object> requestBody = new HashMap<String, Object>();
+    requestBody.put("name", "aSignalName");
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(requestBody)
+    .then()
+      .expect()
+        .statusCode(Status.INTERNAL_SERVER_ERROR.getStatusCode())
+        .body("type", equalTo(IllegalArgumentException.class.getSimpleName()))
         .body("message", equalTo(message))
     .when()
       .post(SIGNAL_URL);

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.jobexecutor;
 
 import org.camunda.bpm.engine.impl.Page;
@@ -19,7 +22,7 @@ import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.AcquiredJobs;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
-import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.AcquirableJobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.junit.Before;
 import org.junit.Test;
@@ -66,8 +69,8 @@ public class AcquireJobCmdUnitTest {
   @Test
   public void nonExclusiveJobsSameInstance() {
     // given: two non-exclusive jobs for a different process instance
-    JobEntity job1 = createNonExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
-    JobEntity job2 = createNonExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job1 = createNonExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job2 = createNonExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_1);
 
     // when the job executor acquire new jobs
     when(jobManager.findNextJobsToExecute(any(Page.class))).thenReturn(Arrays.asList(job1, job2));
@@ -79,8 +82,8 @@ public class AcquireJobCmdUnitTest {
   @Test
   public void nonExclusiveDifferentInstance() {
     // given: two non-exclusive jobs for the same process instance
-    JobEntity job1 = createNonExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
-    JobEntity job2 = createNonExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_2);
+    AcquirableJobEntity job1 = createNonExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job2 = createNonExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_2);
 
     // when the job executor acquire new jobs
     when(jobManager.findNextJobsToExecute(any(Page.class))).thenReturn(Arrays.asList(job1, job2));
@@ -92,8 +95,8 @@ public class AcquireJobCmdUnitTest {
   @Test
   public void exclusiveJobsSameInstance() {
     // given: two exclusive jobs for the same process instance
-    JobEntity job1 = createExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
-    JobEntity job2 = createExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job1 = createExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job2 = createExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_1);
 
     // when the job executor acquire new jobs
     when(jobManager.findNextJobsToExecute(any(Page.class))).thenReturn(Arrays.asList(job1, job2));
@@ -110,8 +113,8 @@ public class AcquireJobCmdUnitTest {
   @Test
   public void exclusiveJobsDifferentInstance() {
     // given: two exclusive jobs for a different process instance
-    JobEntity job1 = createExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
-    JobEntity job2 = createExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_2);
+    AcquirableJobEntity job1 = createExclusiveJob(JOB_ID_1, PROCESS_INSTANCE_ID_1);
+    AcquirableJobEntity job2 = createExclusiveJob(JOB_ID_2, PROCESS_INSTANCE_ID_2);
 
     // when the job executor acquire new jobs
     when(jobManager.findNextJobsToExecute(any(Page.class))).thenReturn(Arrays.asList(job1, job2));
@@ -120,14 +123,14 @@ public class AcquireJobCmdUnitTest {
     checkThatAcquiredJobsInDifferentBatches();
   }
 
-  protected JobEntity createExclusiveJob(String id, String processInstanceId) {
-    JobEntity job = createNonExclusiveJob(id, processInstanceId);
+  protected AcquirableJobEntity createExclusiveJob(String id, String processInstanceId) {
+    AcquirableJobEntity job = createNonExclusiveJob(id, processInstanceId);
     when(job.isExclusive()).thenReturn(true);
     return job;
   }
 
-  protected JobEntity createNonExclusiveJob(String id, String processInstanceId) {
-    JobEntity job = mock(JobEntity.class);
+  protected AcquirableJobEntity createNonExclusiveJob(String id, String processInstanceId) {
+    AcquirableJobEntity job = mock(AcquirableJobEntity.class);
     when(job.getId()).thenReturn(id);
     when(job.getProcessInstanceId()).thenReturn(processInstanceId);
     return job;

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.bpmn.deployment;
 
 import java.io.InputStream;
@@ -27,14 +30,13 @@ import org.camunda.bpm.engine.impl.pvm.ReadOnlyProcessDefinition;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
-import org.camunda.bpm.engine.repository.CaseDefinition;
+import org.camunda.bpm.engine.repository.DeploymentHandlerFactory;
 import org.camunda.bpm.engine.repository.DeploymentWithDefinitions;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.Resource;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
-import org.junit.Test;
 
 
 /**
@@ -42,6 +44,23 @@ import org.junit.Test;
  * @author Thorben Lindhauer
  */
 public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
+
+  DeploymentHandlerFactory defaultDeploymentHandlerFactory;
+  DeploymentHandlerFactory customDeploymentHandlerFactory;
+
+  @Override
+  protected void setUp() throws Exception {
+    defaultDeploymentHandlerFactory = processEngineConfiguration.getDeploymentHandlerFactory();
+    customDeploymentHandlerFactory = new VersionedDeploymentHandlerFactory();
+
+    super.setUp();
+  }
+
+  @Override
+  protected void tearDown() throws Exception {
+    processEngineConfiguration.setDeploymentHandlerFactory(defaultDeploymentHandlerFactory);
+    super.tearDown();
+  }
 
   @Deployment
   public void testGetBpmnXmlFileThroughService() {
@@ -107,6 +126,66 @@ public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
     assertEquals(1, deploymentList.size());
 
     repositoryService.deleteDeployment(deploymentId);
+  }
+
+  public void testDuplicateFilteringDefaultBehavior() {
+    // given
+    BpmnModelInstance oldModel = Bpmn.createExecutableProcess("versionedProcess")
+      .camundaVersionTag("3").done();
+    BpmnModelInstance newModel = Bpmn.createExecutableProcess("versionedProcess")
+      .camundaVersionTag("1").done();
+
+    deploymentIds.add(repositoryService.createDeployment()
+      .enableDuplicateFiltering(true)
+      .addModelInstance("model", oldModel)
+      .name("defaultDeploymentHandling")
+      .deploy().getId());
+
+    // when
+    deploymentIds.add(repositoryService.createDeployment()
+      .enableDuplicateFiltering(true)
+      .addModelInstance("model", newModel)
+      .name("defaultDeploymentHandling")
+      .deploy().getId());
+
+    // then
+    long deploymentCount = repositoryService.createDeploymentQuery().count();
+    assertEquals(2, deploymentCount);
+  }
+
+  public void testDuplicateFilteringCustomBehavior() {
+    // given
+    processEngineConfiguration.setDeploymentHandlerFactory(customDeploymentHandlerFactory);
+    BpmnModelInstance oldModel = Bpmn.createExecutableProcess("versionedProcess")
+      .camundaVersionTag("1").done();
+    BpmnModelInstance newModel = Bpmn.createExecutableProcess("versionedProcess")
+      .camundaVersionTag("2").done();
+
+    org.camunda.bpm.engine.repository.Deployment deployment1 = repositoryService.createDeployment()
+        .enableDuplicateFiltering(true)
+        .addModelInstance("model.bpmn", oldModel)
+        .name("customDeploymentHandling")
+        .deploy();
+    deploymentIds.add(deployment1.getId());
+
+    // when
+    deploymentIds.add(repositoryService.createDeployment()
+        .enableDuplicateFiltering(true)
+        .addModelInstance("model.bpmn", newModel)
+        .name("customDeploymentHandling")
+        .deploy()
+        .getId());
+
+    org.camunda.bpm.engine.repository.Deployment deployment3 = repositoryService.createDeployment()
+        .enableDuplicateFiltering(true)
+        .addModelInstance("model.bpmn", oldModel)
+        .name("customDeploymentHandling")
+        .deploy();
+
+    // then
+    long deploymentCount = repositoryService.createDeploymentQuery().count();
+    assertEquals(2, deploymentCount);
+    assertEquals(deployment1.getId(), deployment3.getId());
   }
 
   public void testPartialChangesDeployAll() {
@@ -195,7 +274,6 @@ public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
     repositoryService.deleteDeployment(deployment2.getId());
     repositoryService.deleteDeployment(deployment3.getId());
   }
-
 
   public void testPartialChangesRedeployOldVersion() {
     // deployment 1 deploys process version 1

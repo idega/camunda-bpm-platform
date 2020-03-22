@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +21,6 @@ import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
@@ -25,6 +28,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.Charset;
 
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 
 
@@ -53,20 +57,38 @@ public class IoUtil {
     return outputStream.toByteArray();
   }
 
-  public static String readFileAsString(String filePath) {
-    byte[] buffer = new byte[(int) getFile(filePath).length()];
+  public static String readClasspathResourceAsString(String resourceName) {
+    InputStream resourceAsStream = IoUtil.class.getClassLoader().getResourceAsStream(resourceName);
+
+    if (resourceAsStream == null)
+    {
+      throw new ProcessEngineException("resource " + resourceName + " not found");
+    }
+
+    ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+
+    int next;
+    byte[] result;
+    byte[] buffer = new byte[1024];
+
     BufferedInputStream inputStream = null;
     try {
-      inputStream = new BufferedInputStream(new FileInputStream(getFile(filePath)));
-      inputStream.read(buffer);
+      inputStream = new BufferedInputStream(resourceAsStream);
+      while ((next = inputStream.read(buffer)) >= 0)
+      {
+        outStream.write(buffer, 0, next);
+      }
+
+      result = outStream.toByteArray();
     }
     catch(Exception e) {
-      throw LOG.exceptionWhileReadingFile(filePath, e);
+      throw LOG.exceptionWhileReadingFile(resourceName, e);
     }
     finally {
       IoUtil.closeSilently(inputStream);
+      IoUtil.closeSilently(outStream);
     }
-    return new String(buffer, Charset.forName("UTF-8"));
+    return new String(result, Charset.forName("UTF-8"));
   }
 
   public static File getFile(String filePath) {

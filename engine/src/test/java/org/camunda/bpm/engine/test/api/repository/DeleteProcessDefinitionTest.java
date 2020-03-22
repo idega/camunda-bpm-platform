@@ -1,11 +1,12 @@
 /*
- * Copyright 2016 camunda services GmbH.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -88,6 +89,14 @@ public class DeleteProcessDefinitionTest {
       deployment = null;
     }
   }
+
+  protected static final String IO_MAPPING_PROCESS_KEY = "ioMappingProcess";
+  protected static final BpmnModelInstance IO_MAPPING_PROCESS = Bpmn.createExecutableProcess(IO_MAPPING_PROCESS_KEY)
+    .startEvent()
+    .userTask()
+      .camundaOutputParameter("inputParameter", "${notExistentVariable}")
+    .endEvent()
+    .done();
 
   @Test
   public void testDeleteProcessDefinitionNullId() {
@@ -369,6 +378,29 @@ public class DeleteProcessDefinitionTest {
   }
 
   @Test
+  public void testDeleteProcessDefinitionsByKeyWithIoMappingsSkipped() {
+    // given
+    testHelper.deploy(IO_MAPPING_PROCESS);
+    runtimeService.startProcessInstanceByKey(IO_MAPPING_PROCESS_KEY);
+
+    testHelper.deploy(IO_MAPPING_PROCESS);
+    runtimeService.startProcessInstanceByKey(IO_MAPPING_PROCESS_KEY);
+
+    // when
+    repositoryService.deleteProcessDefinitions()
+      .byKey(IO_MAPPING_PROCESS_KEY)
+      .withoutTenantId()
+      .cascade()
+      .skipIoMappings()
+      .delete();
+
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().list();
+
+    // then
+    assertThat(processDefinitions.size(), is(0));
+  }
+
+  @Test
   public void testDeleteProcessDefinitionsByNotExistingIds() {
     // then
     thrown.expect(NotFoundException.class);
@@ -484,6 +516,30 @@ public class DeleteProcessDefinitionTest {
 
     // then
     assertThat(IncrementCounterListener.counter, is(0));
+  }
+
+  @Test
+  public void testDeleteProcessDefinitionsByIdsWithIoMappingsSkipped() {
+    // given
+    testHelper.deploy(IO_MAPPING_PROCESS);
+    runtimeService.startProcessInstanceByKey(IO_MAPPING_PROCESS_KEY);
+
+    testHelper.deploy(IO_MAPPING_PROCESS);
+    runtimeService.startProcessInstanceByKey(IO_MAPPING_PROCESS_KEY);
+
+    String[] processDefinitionIds = findProcessDefinitionIdsByKey(IO_MAPPING_PROCESS_KEY);
+
+    // when
+    repositoryService.deleteProcessDefinitions()
+      .byIds(processDefinitionIds)
+      .cascade()
+      .skipIoMappings()
+      .delete();
+
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().list();
+
+    // then
+    assertThat(processDefinitions.size(), is(0));
   }
 
   private void deployTwoProcessDefinitions() {

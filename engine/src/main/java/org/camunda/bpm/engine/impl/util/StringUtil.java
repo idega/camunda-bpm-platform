@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.util;
 
 import java.io.ByteArrayInputStream;
@@ -35,6 +38,13 @@ import org.camunda.bpm.engine.runtime.ProcessElementInstance;
  * @author Sebastian Menski
  */
 public final class StringUtil {
+  
+  /**
+   * Note: {@link String#length()} counts Unicode supplementary
+   * characters twice, so for a String consisting only of those,
+   * the limit is effectively MAX_LONG_STRING_LENGTH / 2
+   */
+  public static int DB_MAX_STRING_LENGTH = 666;
 
   /**
    * Checks whether a {@link String} seams to be an expression or not
@@ -155,6 +165,19 @@ public final class StringUtil {
     ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
     Charset charset = processEngineConfiguration.getDefaultCharset();
     return string.getBytes(charset);
+  }
+  
+  /**
+   * Trims the input to the {@link #DB_MAX_STRING_LENGTH maxium length allowed} for persistence with our default database schema 
+   *
+   * @param string the input that might be trimmed if maximum length is exceeded
+   * @return the input, eventually trimmed to {@link #DB_MAX_STRING_LENGTH}
+   */
+  public static String trimToMaximumLengthAllowed(String string) {
+    if (string != null && string.length() > DB_MAX_STRING_LENGTH) {
+      return string.substring(0, DB_MAX_STRING_LENGTH);
+    }
+    return string;
   }
 
   public static String joinDbEntityIds(Collection<? extends DbEntity> dbEntities) {

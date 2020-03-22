@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +16,7 @@
  */
 package org.camunda.spin.plugin.variables;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.camunda.spin.DataFormats.xml;
 import static org.camunda.spin.plugin.variable.SpinValues.xmlValue;
 import static org.camunda.spin.plugin.variable.type.SpinValueType.XML;
@@ -213,6 +218,28 @@ public class XmlValueTest extends PluggableProcessEngineTestCase {
     // then
     List<VariableInstance> variableInstances = runtimeService.createVariableInstanceQuery().list();
     assertEquals(0, variableInstances.size());
+  }
+
+  /**
+   * See https://app.camunda.com/jira/browse/CAM-9932
+   */
+  public void testTransientXmlSpinVariables() {
+    // given
+    BpmnModelInstance modelInstance = Bpmn.createExecutableProcess("aProcess")
+        .startEvent()
+        .serviceTask()
+          .camundaClass(XmlDelegate.class)
+        .userTask()
+        .endEvent()
+        .done();
+      deployment(modelInstance);
+
+    // when
+    String processInstanceId = runtimeService.startProcessInstanceByKey("aProcess").getId();
+
+    // then
+    Object value = runtimeService.getVariable(processInstanceId, "xmlVariable");
+    assertThat(value).isNull();
   }
 
   public void testApplyValueInfoFromSerializedValue() {

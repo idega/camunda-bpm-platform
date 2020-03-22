@@ -1,19 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-
 <!--
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
-  ~
-  ~       http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
 
+    Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+    under one or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information regarding copyright
+    ownership. Camunda licenses this file to you under the Apache License,
+    Version 2.0; you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.history.event.UserOperationLogEntryEventEntity">
@@ -26,6 +29,7 @@
         DEPLOYMENT_ID_,
         PROC_DEF_ID_,
         PROC_DEF_KEY_,
+        ROOT_PROC_INST_ID_,
         PROC_INST_ID_,
         EXECUTION_ID_,
         CASE_DEF_ID_,
@@ -43,12 +47,17 @@
         PROPERTY_,
         ORG_VALUE_,
         NEW_VALUE_,
-        TENANT_ID_
+        TENANT_ID_,
+        REMOVAL_TIME_,
+        CATEGORY_,
+        EXTERNAL_TASK_ID_,
+        ANNOTATION_
       ) values (
         #{id ,jdbcType=VARCHAR},
         #{deploymentId, jdbcType=VARCHAR},
         #{processDefinitionId, jdbcType=VARCHAR},
         #{processDefinitionKey, jdbcType=VARCHAR},
+        #{rootProcessInstanceId, jdbcType=VARCHAR},
         #{processInstanceId, jdbcType=VARCHAR},
         #{executionId, jdbcType=VARCHAR},
         #{caseDefinitionId, jdbcType=VARCHAR},
@@ -66,14 +75,114 @@
         #{property, jdbcType=VARCHAR},
         #{orgValue, jdbcType=VARCHAR},
         #{newValue ,jdbcType=VARCHAR},
-        #{tenantId ,jdbcType=VARCHAR}
+        #{tenantId ,jdbcType=VARCHAR},
+        #{removalTime, jdbcType=TIMESTAMP},
+        #{category, jdbcType=VARCHAR},
+        #{externalTaskId, jdbcType=VARCHAR},
+        #{annotation, jdbcType=VARCHAR}
       )
   </insert>
 
+  <!-- OPERATION LOG ENTRY UPDATE -->
+
+  <update id="updateUserOperationLogByRootProcessInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_OP_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateUserOperationLogByRootProcessInstanceId_mysql"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_OP_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP},
+      TIMESTAMP_ = TIMESTAMP_
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateUserOperationLogByProcessInstanceId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_OP_LOG
+      set REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+      where PROC_INST_ID_ = #{processInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateUserOperationLogByProcessInstanceId_mysql"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_OP_LOG
+      set REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP},
+          TIMESTAMP_ = TIMESTAMP_
+      where PROC_INST_ID_ = #{processInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateOperationLogAnnotationByOperationId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_OP_LOG
+      set ANNOTATION_ = #{annotation, jdbcType=VARCHAR}
+      where OPERATION_ID_ = #{operationId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateOperationLogAnnotationByOperationId_mysql"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_OP_LOG
+      set ANNOTATION_ = #{annotation, jdbcType=VARCHAR},
+          TIMESTAMP_ = TIMESTAMP_
+      where OPERATION_ID_ = #{operationId, jdbcType=VARCHAR}
+  </update>
+
   <!-- OPERATION LOG ENTRY DELETE -->
-  
+
   <delete id="deleteUserOperationLogEntryById">
     delete from ${prefix}ACT_HI_OP_LOG where ID_ = #{id}
+  </delete>
+
+
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteUserOperationLogByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_OP_LOG
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteUserOperationLogByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_OP_LOG
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteUserOperationLogByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_OP_LOG
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_OP_LOG
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
   </delete>
 
   <!--OPERATION LOG ENTRY RESULT MAP -->
@@ -83,6 +192,7 @@
     <result property="deploymentId" column="DEPLOYMENT_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
     <result property="caseDefinitionId" column="CASE_DEF_ID_" jdbcType="VARCHAR" />
@@ -101,6 +211,10 @@
     <result property="orgValue" column="ORG_VALUE_" jdbcType="VARCHAR" />
     <result property="newValue" column="NEW_VALUE_" jdbcType="VARCHAR" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
+    <result property="category" column="CATEGORY_" jdbcType="VARCHAR" />
+    <result property="externalTaskId" column="EXTERNAL_TASK_ID_" jdbcType="VARCHAR" />
+    <result property="annotation" column="ANNOTATION_" jdbcType="VARCHAR" />
   </resultMap>
 
   <!-- OPERATION LOG ENTRY SELECT -->
@@ -120,16 +234,17 @@
   </select>
 
   <select id="selectUserOperationLogEntryCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.UserOperationLogQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectUserOperationLogEntriesByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
 
   <sql id="selectUserOperationLogEntriesByQueryCriteriaSql">
     from ${prefix}ACT_HI_OP_LOG RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+    <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause"/>
-      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
+      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, RES.CATEGORY_, '*'))
     </if>
 
     <where>
@@ -175,6 +290,9 @@
       <if test="operationId != null">
         and RES.OPERATION_ID_ = #{operationId}
       </if>
+      <if test="externalTaskId != null">
+        and RES.EXTERNAL_TASK_ID_ = #{externalTaskId}
+      </if>
       <if test="operationType != null">
         and RES.OPERATION_TYPE_ = #{operationType}
       </if>
@@ -196,17 +314,48 @@
       <if test="timestampBefore != null">
         and RES.TIMESTAMP_ &lt; #{timestampBefore}
       </if>
-
-      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <if test="category != null">
+        and RES.CATEGORY_ = #{category}
+      </if>
+      <if test="categories != null &amp;&amp; categories.length > 0">
+        and RES.CATEGORY_ in
+        <foreach item="category" collection="categories" open="(" separator="," close=")">
+          #{category}
+        </foreach>
+      </if>
+      
+      <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; authCheck.authUserId != null">
         <!-- may not exist in the context of a process definition -->
-        and (
-          (RES.PROC_DEF_KEY_ is not null
-          <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
-          ) or RES.PROC_DEF_KEY_ is null
-        )
+          and ( 
+            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheckWithoutPrefix"/>
+            or ( RES.CATEGORY_ IS NULL AND RES.PROC_DEF_KEY_ IS NULL )
+          )
       </if>
 
     </where>
   </sql>
+
+  <select id="selectHistoricUserOperationLogPage" resultMap="UserOperationLogResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+    ${optimizeLimitBeforeWithoutOffset}
+    select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_OP_LOG RES
+    <where>
+      <if test="parameter.occurredAfter != null">
+        RES.TIMESTAMP_ &gt; #{parameter.occurredAfter}
+      </if>
+      <if test="parameter.occurredAt != null">
+        and RES.TIMESTAMP_ = #{parameter.occurredAt}
+      </if>
+      <if test="parameter.operationTypes != null and parameter.operationTypes.length > 0">
+        and RES.OPERATION_TYPE_ in
+        <foreach item="item" index="index" collection="parameter.operationTypes" open="(" separator="," close=")">
+            #{item, jdbcType=VARCHAR}
+        </foreach>
+      </if>
+    </where>
+
+    ORDER BY RES.TIMESTAMP_ ASC
+    ${optimizeLimitAfterWithoutOffset}
+  </select>
 
 </mapper>

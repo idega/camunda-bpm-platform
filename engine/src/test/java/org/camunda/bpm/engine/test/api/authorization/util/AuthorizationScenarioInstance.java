@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -86,9 +90,11 @@ public class AuthorizationScenarioInstance {
         Assert.assertTrue(assertionFailureMessage, message.contains(missingAuthorization.getUserId()));
         Assert.assertEquals(missingAuthorization.getUserId(), e.getUserId());
 
-        for (Permission permission : missingAuthorization.getPermissions(Permissions.values())) {
-          if (permission != Permissions.NONE) {
+        Permission[] permissions = AuthorizationTestUtil.getPermissions(missingAuthorization);
+        for (Permission permission : permissions) {
+          if (permission.getValue() != Permissions.NONE.getValue()) {
             Assert.assertTrue(assertionFailureMessage, message.contains(permission.getName()));
+            break;
           }
         }
 

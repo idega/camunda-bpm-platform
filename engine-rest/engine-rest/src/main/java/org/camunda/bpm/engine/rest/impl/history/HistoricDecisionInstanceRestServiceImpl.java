@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,26 +17,28 @@
 package org.camunda.bpm.engine.rest.impl.history;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import javax.ws.rs.core.UriInfo;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.BadUserRequestException;
+import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ProcessEngine;
-import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
+import org.camunda.bpm.engine.history.SetRemovalTimeSelectModeForHistoricDecisionInstancesBuilder;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
 import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.history.HistoricDecisionInstanceDto;
 import org.camunda.bpm.engine.rest.dto.history.HistoricDecisionInstanceQueryDto;
+import org.camunda.bpm.engine.rest.dto.history.batch.removaltime.SetRemovalTimeToHistoricDecisionInstancesDto;
 import org.camunda.bpm.engine.rest.dto.history.batch.DeleteHistoricDecisionInstancesDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.history.HistoricDecisionInstanceRestService;
 import org.camunda.bpm.engine.rest.sub.history.HistoricDecisionInstanceResource;
 import org.camunda.bpm.engine.rest.sub.history.impl.HistoricDecisionInstanceResourceImpl;
-import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -111,6 +117,47 @@ public class HistoricDecisionInstanceRestServiceImpl implements HistoricDecision
     catch (BadUserRequestException e) {
       throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
     }
+  }
+
+  public BatchDto setRemovalTimeAsync(SetRemovalTimeToHistoricDecisionInstancesDto dto) {
+    HistoryService historyService = processEngine.getHistoryService();
+
+    HistoricDecisionInstanceQuery historicDecisionInstanceQuery = null;
+
+    if (dto.getHistoricDecisionInstanceQuery() != null) {
+      historicDecisionInstanceQuery = dto.getHistoricDecisionInstanceQuery().toQuery(processEngine);
+
+    }
+
+    SetRemovalTimeSelectModeForHistoricDecisionInstancesBuilder builder =
+      historyService.setRemovalTimeToHistoricDecisionInstances();
+
+    if (dto.isCalculatedRemovalTime()) {
+      builder.calculatedRemovalTime();
+
+    }
+
+    Date removalTime = dto.getAbsoluteRemovalTime();
+    if (dto.getAbsoluteRemovalTime() != null) {
+      builder.absoluteRemovalTime(removalTime);
+
+    }
+
+    if (dto.isClearedRemovalTime()) {
+      builder.clearedRemovalTime();
+
+    }
+
+    builder.byIds(dto.getHistoricDecisionInstanceIds());
+    builder.byQuery(historicDecisionInstanceQuery);
+
+    if (dto.isHierarchical()) {
+      builder.hierarchical();
+
+    }
+
+    Batch batch = builder.executeAsync();
+    return BatchDto.fromBatch(batch);
   }
 
 }

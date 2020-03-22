@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +36,13 @@ public class TopicFetchInstruction implements Serializable {
 
   protected String topicName;
   protected String businessKey;
+  protected String processDefinitionId;
+  protected String[] processDefinitionIds;
+  protected String processDefinitionKey;
+  protected String[] processDefinitionKeys;
+  protected String processDefinitionVersionTag;
+  protected boolean isTenantIdSet = false;
+  protected String[] tenantIds;
   protected List<String> variablesToFetch;
 
   protected List<QueryVariableValue> filterVariables;
@@ -55,6 +66,67 @@ public class TopicFetchInstruction implements Serializable {
 
   public void setBusinessKey(String businessKey) {
     this.businessKey = businessKey;
+  }
+
+  public String getBusinessKey() {
+    return businessKey;
+  }
+
+  public void setProcessDefinitionId(String processDefinitionId) {
+    this.processDefinitionId = processDefinitionId;
+  }
+
+  public String getProcessDefinitionId() {
+    return processDefinitionId;
+  }
+
+  public void setProcessDefinitionIds(String[] processDefinitionIds) {
+    this.processDefinitionIds = processDefinitionIds;
+  }
+
+  public String[] getProcessDefinitionIds() {
+    return processDefinitionIds;
+  }
+
+  public void setProcessDefinitionKey(String processDefinitionKey) {
+    this.processDefinitionKey = processDefinitionKey;
+  }
+
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
+  }
+
+  public void setProcessDefinitionKeys(String[] processDefinitionKeys) {
+    this.processDefinitionKeys = processDefinitionKeys;
+  }
+
+  public String[] getProcessDefinitionKeys() {
+    return processDefinitionKeys;
+  }
+
+  public void setProcessDefinitionVersionTag(String processDefinitionVersionTag) {
+    this.processDefinitionVersionTag = processDefinitionVersionTag;
+  }
+
+  public String getProcessDefinitionVersionTag() {
+    return processDefinitionVersionTag;
+  }
+
+  public boolean isTenantIdSet() {
+    return isTenantIdSet;
+  }
+
+  public void setTenantIdSet(boolean isTenantIdSet) {
+    this.isTenantIdSet = isTenantIdSet;
+  }
+
+  public String[] getTenantIds() {
+    return tenantIds;
+  }
+
+  public void setTenantIds(String[] tenantIds) {
+    isTenantIdSet = true;
+    this.tenantIds = tenantIds;
   }
 
   public List<QueryVariableValue> getFilterVariables() {
@@ -102,11 +174,11 @@ public class TopicFetchInstruction implements Serializable {
   }
 
   public boolean isLocalVariables() {
-	return localVariables;
+    return localVariables;
   }
 
   public void setLocalVariables(boolean localVariables) {
-	this.localVariables = localVariables;
+    this.localVariables = localVariables;
   }
 
 }

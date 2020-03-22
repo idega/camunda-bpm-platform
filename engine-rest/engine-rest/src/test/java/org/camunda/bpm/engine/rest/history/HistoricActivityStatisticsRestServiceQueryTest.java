@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +16,8 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.util.DateTimeUtils.DATE_FORMAT_WITH_TIMEZONE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
@@ -31,6 +35,7 @@ import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.history.HistoricActivityStatistics;
 import org.camunda.bpm.engine.history.HistoricActivityStatisticsQuery;
+import org.camunda.bpm.engine.impl.HistoricActivityStatisticsQueryImpl;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
@@ -42,8 +47,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  *
@@ -54,7 +59,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
-  
+
   protected static final String HISTORY_URL = TEST_RESOURCE_ROOT_PATH + "/history";
   protected static final String HISTORIC_ACTIVITY_STATISTICS_URL = HISTORY_URL + "/process-definition/{id}/statistics";
 
@@ -68,9 +73,9 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
   private void setupHistoricActivityStatisticsMock() {
     List<HistoricActivityStatistics> mocks = MockProvider.createMockHistoricActivityStatistics();
 
-    historicActivityStatisticsQuery = mock(HistoricActivityStatisticsQuery.class);
+    historicActivityStatisticsQuery = mock(HistoricActivityStatisticsQueryImpl.class);
     when(processEngine.getHistoryService().createHistoricActivityStatisticsQuery(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenReturn(historicActivityStatisticsQuery);
-    when(historicActivityStatisticsQuery.list()).thenReturn(mocks);
+    when(historicActivityStatisticsQuery.unlimitedList()).thenReturn(mocks);
   }
 
   @Test
@@ -94,7 +99,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).includeCanceled();
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -109,7 +114,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).includeFinished();
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -124,7 +129,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).includeCompleteScope();
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -140,7 +145,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).startedAfter(testDate);
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -156,7 +161,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).startedBefore(testDate);
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -172,7 +177,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).finishedAfter(testDate);
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -188,7 +193,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).finishedBefore(testDate);
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 
@@ -204,7 +209,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     verify(historicActivityStatisticsQuery).includeCompleteScope();
     verify(historicActivityStatisticsQuery).includeCanceled();
-    verify(historicActivityStatisticsQuery).list();
+    verify(historicActivityStatisticsQuery).unlimitedList();
     verifyNoMoreInteractions(historicActivityStatisticsQuery);
   }
 
@@ -220,7 +225,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     verify(historicActivityStatisticsQuery).includeCompleteScope();
     verify(historicActivityStatisticsQuery).includeFinished();
-    verify(historicActivityStatisticsQuery).list();
+    verify(historicActivityStatisticsQuery).unlimitedList();
     verifyNoMoreInteractions(historicActivityStatisticsQuery);
   }
 
@@ -236,7 +241,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
 
     verify(historicActivityStatisticsQuery).includeCanceled();
     verify(historicActivityStatisticsQuery).includeFinished();
-    verify(historicActivityStatisticsQuery).list();
+    verify(historicActivityStatisticsQuery).unlimitedList();
     verifyNoMoreInteractions(historicActivityStatisticsQuery);
   }
 
@@ -254,7 +259,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
     verify(historicActivityStatisticsQuery).includeCompleteScope();
     verify(historicActivityStatisticsQuery).includeFinished();
     verify(historicActivityStatisticsQuery).includeCanceled();
-    verify(historicActivityStatisticsQuery).list();
+    verify(historicActivityStatisticsQuery).unlimitedList();
     verifyNoMoreInteractions(historicActivityStatisticsQuery);
   }
 
@@ -269,8 +274,39 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
       .statusCode(Status.OK.getStatusCode())
       .when().get(HISTORIC_ACTIVITY_STATISTICS_URL);
 
-    verify(historicActivityStatisticsQuery).list();
+    verify(historicActivityStatisticsQuery).unlimitedList();
     verifyNoMoreInteractions(historicActivityStatisticsQuery);
+  }
+
+
+  @Test
+  public void testProcessInstanceIdInFilter() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .queryParam("processInstanceIdIn", "foo,bar")
+      .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_ACTIVITY_STATISTICS_URL);
+
+    InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
+    inOrder.verify(historicActivityStatisticsQuery).processInstanceIdIn(new String[] {"foo", "bar"});
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testIncidentsFilter() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .queryParam("incidents", "true")
+      .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_ACTIVITY_STATISTICS_URL);
+
+    InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
+    inOrder.verify(historicActivityStatisticsQuery).includeIncidents();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
+    inOrder.verifyNoMoreInteractions();
   }
 
   @Test
@@ -293,24 +329,36 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
     long canceled = from(content).getLong("[0].canceled");
     long finished = from(content).getLong("[0].finished");
     long completeScope = from(content).getLong("[0].completeScope");
+    long openIncidents = from(content).getLong("[0].openIncidents");
+    long resolvedIncidents = from(content).getLong("[0].resolvedIncidents");
+    long deletedIncidents = from(content).getLong("[0].deletedIncidents");
 
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_ID, id);
     Assert.assertEquals(MockProvider.EXAMPLE_INSTANCES_LONG, instances);
     Assert.assertEquals(MockProvider.EXAMPLE_CANCELED_LONG, canceled);
     Assert.assertEquals(MockProvider.EXAMPLE_FINISHED_LONG, finished);
     Assert.assertEquals(MockProvider.EXAMPLE_COMPLETE_SCOPE_LONG, completeScope);
+    Assert.assertEquals(MockProvider.EXAMPLE_OPEN_INCIDENTS_LONG, openIncidents);
+    Assert.assertEquals(MockProvider.EXAMPLE_RESOLVED_INCIDENTS_LONG, resolvedIncidents);
+    Assert.assertEquals(MockProvider.EXAMPLE_DELETED_INCIDENTS_LONG, deletedIncidents);
 
     id = from(content).getString("[1].id");
     instances = from(content).getLong("[1].instances");
     canceled = from(content).getLong("[1].canceled");
     finished = from(content).getLong("[1].finished");
     completeScope = from(content).getLong("[1].completeScope");
+    openIncidents = from(content).getLong("[1].openIncidents");
+    resolvedIncidents = from(content).getLong("[1].resolvedIncidents");
+    deletedIncidents = from(content).getLong("[1].deletedIncidents");
 
     Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_ACTIVITY_ID, id);
     Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_INSTANCES_LONG, instances);
     Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_CANCELED_LONG, canceled);
     Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_FINISHED_LONG, finished);
     Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_COMPLETE_SCOPE_LONG, completeScope);
+    Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_OPEN_INCIDENTS_LONG, openIncidents);
+    Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_RESOLVED_INCIDENTS_LONG, resolvedIncidents);
+    Assert.assertEquals(MockProvider.ANOTHER_EXAMPLE_DELETED_INCIDENTS_LONG, deletedIncidents);
 
   }
 
@@ -318,7 +366,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
   public void testSortByParameterOnly() {
     given()
       .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
-      .queryParam("sortBy", "dueDate")
+      .queryParam("sortBy", "activityId")
     .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode()).contentType(ContentType.JSON)
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
       .body("message", equalTo("Only a single sorting parameter specified. sortBy and sortOrder required"))
@@ -344,7 +392,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
       .queryParam("sortBy", "activityId")
     .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode()).contentType(ContentType.JSON)
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
-      .body("message", equalTo("sortOrder parameter has invalid value: invalid"))
+      .body("message", equalTo("Cannot set query parameter 'sortOrder' to value 'invalid'"))
       .when().get(HISTORIC_ACTIVITY_STATISTICS_URL);
   }
 
@@ -356,7 +404,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
       .queryParam("sortBy", "invalid")
     .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode()).contentType(ContentType.JSON)
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
-      .body("message", equalTo("sortBy parameter has invalid value: invalid"))
+      .body("message", equalTo("Cannot set query parameter 'sortBy' to value 'invalid'"))
       .when().get(HISTORIC_ACTIVITY_STATISTICS_URL);
   }
 
@@ -374,7 +422,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
     InOrder inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).orderByActivityId();
     inOrder.verify(historicActivityStatisticsQuery).asc();
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
 
     given()
@@ -389,7 +437,7 @@ public class HistoricActivityStatisticsRestServiceQueryTest extends AbstractRest
     inOrder = Mockito.inOrder(historicActivityStatisticsQuery);
     inOrder.verify(historicActivityStatisticsQuery).orderByActivityId();
     inOrder.verify(historicActivityStatisticsQuery).desc();
-    inOrder.verify(historicActivityStatisticsQuery).list();
+    inOrder.verify(historicActivityStatisticsQuery).unlimitedList();
     inOrder.verifyNoMoreInteractions();
   }
 

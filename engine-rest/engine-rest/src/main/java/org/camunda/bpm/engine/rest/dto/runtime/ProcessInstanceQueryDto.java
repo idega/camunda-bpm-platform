@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +27,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.impl.ProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.VariableQueryParameterDto;
@@ -55,6 +60,8 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
 
   private String deploymentId;
   private String processDefinitionKey;
+  private List<String> processDefinitionKeys;
+  private List<String> processDefinitionKeyNotIn;
   private String businessKey;
   private String businessKeyLike;
   private String caseInstanceId;
@@ -66,6 +73,7 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   private Boolean active;
   private Boolean suspended;
   private Set<String> processInstanceIds;
+  private Boolean withIncident;
   private String incidentId;
   private String incidentType;
   private String incidentMessage;
@@ -74,8 +82,15 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   private Boolean withoutTenantId;
   private List<String> activityIds;
   private Boolean rootProcessInstances;
+  private Boolean leafProcessInstances;
+  private Boolean isProcessDefinitionWithoutTenantId;
+
+  protected Boolean variableNamesIgnoreCase;
+  protected Boolean variableValuesIgnoreCase;
 
   private List<VariableQueryParameterDto> variables;
+
+  private List<ProcessInstanceQueryDto> orQueries;
 
   public ProcessInstanceQueryDto() {
 
@@ -83,6 +98,11 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
 
   public ProcessInstanceQueryDto(ObjectMapper objectMapper, MultivaluedMap<String, String> queryParameters) {
     super(objectMapper, queryParameters);
+  }
+
+  @CamundaQueryParam("orQueries")
+  public void setOrQueries(List<ProcessInstanceQueryDto> orQueries) {
+    this.orQueries = orQueries;
   }
 
   public Set<String> getProcessInstanceIds() {
@@ -110,6 +130,24 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   @CamundaQueryParam("processDefinitionKey")
   public void setProcessDefinitionKey(String processDefinitionKey) {
     this.processDefinitionKey = processDefinitionKey;
+  }
+
+  public List<String> getProcessDefinitionKeys() {
+    return processDefinitionKeys;
+  }
+
+  @CamundaQueryParam(value = "processDefinitionKeyIn", converter = StringListConverter.class)
+  public void setProcessDefinitionKeyIn(List<String> processDefinitionKeys) {
+    this.processDefinitionKeys = processDefinitionKeys;
+  }
+
+  public List<String> getProcessDefinitionKeyNotIn() {
+    return processDefinitionKeyNotIn;
+  }
+
+  @CamundaQueryParam(value = "processDefinitionKeyNotIn", converter = StringListConverter.class)
+  public void setProcessDefinitionKeyNotIn(List<String> processDefinitionKeys) {
+    this.processDefinitionKeyNotIn = processDefinitionKeys;
   }
 
   public String getBusinessKey() {
@@ -211,6 +249,33 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     this.variables = variables;
   }
 
+  public Boolean isVariableNamesIgnoreCase() {
+    return variableNamesIgnoreCase;
+  }
+
+  @CamundaQueryParam(value = "variableNamesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableNamesIgnoreCase(Boolean variableNamesCaseInsensitive) {
+    this.variableNamesIgnoreCase = variableNamesCaseInsensitive;
+  }
+
+  public Boolean isVariableValuesIgnoreCase() {
+    return variableValuesIgnoreCase;
+  }
+
+  @CamundaQueryParam(value ="variableValuesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableValuesIgnoreCase(Boolean variableValuesCaseInsensitive) {
+    this.variableValuesIgnoreCase = variableValuesCaseInsensitive;
+  }
+
+  public Boolean isWithIncident() {
+    return withIncident;
+  }
+
+  @CamundaQueryParam(value = "withIncident", converter = BooleanConverter.class)
+  public void setWithIncident(Boolean withIncident) {
+    this.withIncident = withIncident;
+  }
+
   public String getIncidentId() {
     return incidentId;
   }
@@ -283,6 +348,25 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     this.rootProcessInstances = rootProcessInstances;
   }
 
+
+  public Boolean isLeafProcessInstances() {
+    return leafProcessInstances;
+  }
+
+  @CamundaQueryParam(value = "leafProcessInstances", converter = BooleanConverter.class)
+  public void setLeafProcessInstances(Boolean leafProcessInstances) {
+    this.leafProcessInstances = leafProcessInstances;
+  }
+
+  public Boolean isProcessDefinitionWithoutTenantId() {
+    return isProcessDefinitionWithoutTenantId;
+  }
+
+  @CamundaQueryParam(value = "processDefinitionWithoutTenantId", converter = BooleanConverter.class)
+  public void setProcessDefinitionWithoutTenantId(Boolean isProcessDefinitionWithoutTenantId) {
+    this.isProcessDefinitionWithoutTenantId = isProcessDefinitionWithoutTenantId;
+  }
+
   @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
@@ -293,14 +377,31 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     return engine.getRuntimeService().createProcessInstanceQuery();
   }
 
+  public List<ProcessInstanceQueryDto> getOrQueries() {
+    return orQueries;
+  }
+
   @Override
   protected void applyFilters(ProcessInstanceQuery query) {
-
+    if (orQueries != null) {
+      for (ProcessInstanceQueryDto orQueryDto: orQueries) {
+        ProcessInstanceQueryImpl orQuery = new ProcessInstanceQueryImpl();
+        orQuery.setOrQueryActive();
+        orQueryDto.applyFilters(orQuery);
+        ((ProcessInstanceQueryImpl) query).addOrQuery(orQuery);
+      }
+    }
     if (processInstanceIds != null) {
       query.processInstanceIds(processInstanceIds);
     }
     if (processDefinitionKey != null) {
       query.processDefinitionKey(processDefinitionKey);
+    }
+    if (processDefinitionKeys != null && !processDefinitionKeys.isEmpty()) {
+      query.processDefinitionKeyIn(processDefinitionKeys.toArray(new String[processDefinitionKeys.size()]));
+    }
+    if (processDefinitionKeyNotIn != null && !processDefinitionKeyNotIn.isEmpty()) {
+      query.processDefinitionKeyNotIn(processDefinitionKeyNotIn.toArray(new String[processDefinitionKeyNotIn.size()]));
     }
     if (deploymentId != null) {
       query.deploymentId(deploymentId);
@@ -310,6 +411,9 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     }
     if (businessKeyLike != null) {
       query.processInstanceBusinessKeyLike(businessKeyLike);
+    }
+    if(TRUE.equals(withIncident)) {
+      query.withIncident();
     }
     if (caseInstanceId != null) {
       query.caseInstanceId(caseInstanceId);
@@ -358,6 +462,18 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     }
     if (TRUE.equals(rootProcessInstances)) {
       query.rootProcessInstances();
+    }
+    if(TRUE.equals(leafProcessInstances)) {
+      query.leafProcessInstances();
+    }
+    if (TRUE.equals(isProcessDefinitionWithoutTenantId)) {
+      query.processDefinitionWithoutTenantId();
+    }
+    if(TRUE.equals(variableNamesIgnoreCase)) {
+      query.matchVariableNamesIgnoreCase();
+    }
+    if(TRUE.equals(variableValuesIgnoreCase)) {
+      query.matchVariableValuesIgnoreCase();
     }
     if (variables != null) {
       for (VariableQueryParameterDto variableQueryParam : variables) {

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -99,6 +103,9 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    *  <code>enableExpressionsInStoredQueries</code> (default <code>true</code>) to <code>true</code>.
    */
   TaskQuery taskAssigneeLikeExpression(String assigneeLikeExpression);
+
+  /** Only select tasks which are assigned to one of the given users. */
+  TaskQuery taskAssigneeIn(String... assignees);
 
   /** Only select tasks for which the given user is the owner. */
   TaskQuery taskOwner(String owner);
@@ -323,6 +330,9 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   /** Only select tasks for the given process instance id. */
   TaskQuery processInstanceId(String processInstanceId);
 
+  /** Only select tasks for the given process instance ids. */
+  TaskQuery processInstanceIdIn(String... processInstanceIds);
+
   /** Only select tasks for the given process instance business key */
   TaskQuery processInstanceBusinessKey(String processInstanceBusinessKey);
 
@@ -428,6 +438,16 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    * name is like the given parameter.
    * The syntax is that of SQL: for example usage: nameLike(%processDefinitionName%)*/
   TaskQuery caseDefinitionNameLike(String caseDefinitionNameLike);
+
+  /**
+   * All queries for task-, process- and case-variables will match the variable names in a case-insensitive way.
+   */
+  TaskQuery matchVariableNamesIgnoreCase();
+
+  /**
+   * All queries for task-, process- and case-variables will match the variable values in a case-insensitive way.
+   */
+  TaskQuery matchVariableValuesIgnoreCase();
 
   /**
    * Only select tasks which have a local task variable with the given name
@@ -556,7 +576,6 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    * starts with (string%), ends with (%string) or contains (%string%).
    */
   TaskQuery caseInstanceVariableValueLike(String variableName, String variableValue);
-
 
   /**
    * Only select tasks which are part of a case instance that have a variable

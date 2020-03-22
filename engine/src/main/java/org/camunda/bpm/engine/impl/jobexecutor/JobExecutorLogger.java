@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +18,7 @@ package org.camunda.bpm.engine.impl.jobexecutor;
 
 import java.util.Collection;
 
+import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -52,8 +57,15 @@ public class JobExecutorLogger extends ProcessEngineLogger {
   }
 
   public void exceptionWhileExecutingJob(String nextJobId, Throwable t) {
-    logWarn(
-        "006", "Exception while executing job {}: ", nextJobId, t);
+    if(t instanceof OptimisticLockingException && !isDebugEnabled()) {
+      logWarn(
+          "006", 
+          "Exception while executing job {}: {}. To see the full stacktrace set logging level to DEBUG.", 
+          nextJobId, t.getClass().getSimpleName());
+    } else {
+      logWarn(
+          "006", "Exception while executing job {}: ", nextJobId, t);
+    }
   }
 
   public void couldNotDeterminePriority(ExecutionEntity execution, Object value, ProcessEngineException e) {

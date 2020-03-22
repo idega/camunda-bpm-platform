@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -311,7 +315,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
 
   public AuthorizationException requiredCamundaAdminException() {
     return new AuthorizationException(
-      exceptionMessage("029", "Required admin authenticated group."));
+      exceptionMessage("029", "Required admin authenticated group or user."));
   }
 
   public void createChildExecution(ExecutionEntity child, ExecutionEntity parent) {
@@ -535,14 +539,6 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
         ));
   }
 
-  public ProcessEngineException updateTransientVariableException(String variableName) {
-    return new ProcessEngineException(exceptionMessage(
-        "064",
-        "The variable with name '{}' can not be updated because it is transient and read-only.",
-        variableName
-        ));
-  }
-
   public void creatingHistoryLevelPropertyInDatabase(HistoryLevel historyLevel) {
     logInfo(
         "065",
@@ -679,7 +675,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
     do {
       if (exCause instanceof BatchExecutorException) {
         final List<SQLException> relatedSqlExceptions = ExceptionUtil.findRelatedSqlExceptions(exCause);
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         for (SQLException sqlException : relatedSqlExceptions) {
           sb.append(sqlException).append("\n");
         }
@@ -690,7 +686,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
 
     String exceptionMessage = exceptionMessage(
       "083",
-      "Exception while executing Batch Database Operations with message '{}'. Flush summary: \n {}", message,
+      "Unexpected exception while executing database operations with message '{}'. Flush summary: \n {}", message,
       buildStringFromList(operationsToFlush)
     );
 
@@ -711,6 +707,49 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
         "Found more than one decision definition for key '{}' and versionTag '{}'",
         decisionDefinitionKey, decisionDefinitionVersionTag
         ));
+  }
+
+  public BadUserRequestException invalidResourceForPermission(String resourceType, String permission) {
+    return new BadUserRequestException(exceptionMessage(
+        "086",
+        "The resource type '{}' is not valid for '{}' permission.",
+        resourceType, permission
+        ));
+  }
+
+  public BadUserRequestException invalidResourceForAuthorization(int resourceType, String permission) {
+    return new BadUserRequestException(exceptionMessage(
+        "087",
+        "The resource type with id:'{}' is not valid for '{}' permission.",
+        resourceType, permission
+        ));
+  }
+
+
+  public BadUserRequestException disabledPermissionException(String permission) {
+    return new BadUserRequestException(exceptionMessage(
+        "088",
+        "The '{}' permission is disabled, please check your process engine configuration.",
+        permission
+        ));
+  }
+
+  public ProcessEngineException batchingNotSupported(DbOperation operation) {
+    throw new ProcessEngineException(exceptionMessage(
+        "089",
+        "Batching not supported: The jdbc driver in use does not return the number of "
+        + "affected rows when executing statement batches. "
+        + "Consider setting the engine configuration property 'jdbcBatchProcessing' to false."
+        + "Failed operation: {}",
+        operation));
+  }
+
+  public ProcessEngineException disabledHistoricInstancePermissionsException() {
+    return  new BadUserRequestException(exceptionMessage(
+        "090",
+        "Historic instance permissions are disabled, " +
+            "please check your process engine configuration."
+    ));
   }
 
 }

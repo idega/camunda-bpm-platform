@@ -1,9 +1,13 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -11,6 +15,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.test.bpmn.usertask;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 
@@ -26,16 +32,18 @@ import org.camunda.bpm.engine.test.Deployment;
  */
 public class TaskCandidateTest extends PluggableProcessEngineTestCase {
 
+  private static final String MANAGEMENT = "management";
+
   private static final String KERMIT = "kermit";
 
   private static final String GONZO = "gonzo";
 
   public void setUp() throws Exception {
     super.setUp();
-    
+
     Group accountants = identityService.newGroup("accountancy");
     identityService.saveGroup(accountants);
-    Group managers = identityService.newGroup("management");
+    Group managers = identityService.newGroup(MANAGEMENT);
     identityService.saveGroup(managers);
     Group sales = identityService.newGroup("sales");
     identityService.saveGroup(sales);
@@ -46,7 +54,7 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
 
     User gonzo = identityService.newUser(GONZO);
     identityService.saveUser(gonzo);
-    identityService.createMembership(GONZO, "management");
+    identityService.createMembership(GONZO, MANAGEMENT);
     identityService.createMembership(GONZO, "accountancy");
     identityService.createMembership(GONZO, "sales");
   }
@@ -56,8 +64,8 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
     identityService.deleteUser(GONZO);
     identityService.deleteGroup("sales");
     identityService.deleteGroup("accountancy");
-    identityService.deleteGroup("management");
-    
+    identityService.deleteGroup(MANAGEMENT);
+
     super.tearDown();
   }
 
@@ -78,6 +86,12 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
     tasks = taskService.createTaskQuery().taskCandidateUser(KERMIT).list();
     assertEquals(1, tasks.size());
     Task task = tasks.get(0);
+    assertEquals("Pay out expenses", task.getName());
+
+    // The above query again, now between 'or' and 'endOr'
+    tasks = taskService.createTaskQuery().or().taskCandidateUser(KERMIT).endOr().list();
+    assertEquals(1, tasks.size());
+    task = tasks.get(0);
     assertEquals("Pay out expenses", task.getName());
 
     // Claim the task
@@ -113,20 +127,20 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
       .createTaskQuery()
       .taskAssignee(KERMIT)
       .list();
-    
+
     assertTrue(tasks.isEmpty());
     tasks = taskService
       .createTaskQuery()
       .taskAssignee(GONZO)
       .list();
-    
+
     assertTrue(tasks.isEmpty());
 
     // The task should be visible in the candidate task list of Gonzo and Kermit
     // and anyone in the management/accountancy group
     assertEquals(1, taskService.createTaskQuery().taskCandidateUser(KERMIT).list().size());
     assertEquals(1, taskService.createTaskQuery().taskCandidateUser(GONZO).list().size());
-    assertEquals(1, taskService.createTaskQuery().taskCandidateGroup("management").count());
+    assertEquals(1, taskService.createTaskQuery().taskCandidateGroup(MANAGEMENT).count());
     assertEquals(1, taskService.createTaskQuery().taskCandidateGroup("accountancy").count());
     assertEquals(0, taskService.createTaskQuery().taskCandidateGroup("sales").count());
 
@@ -139,7 +153,7 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
     // The task must now be gone from the candidate task lists
     assertTrue(taskService.createTaskQuery().taskCandidateUser(KERMIT).list().isEmpty());
     assertTrue(taskService.createTaskQuery().taskCandidateUser(GONZO).list().isEmpty());
-    assertEquals(0, taskService.createTaskQuery().taskCandidateGroup("management").count());
+    assertEquals(0, taskService.createTaskQuery().taskCandidateGroup(MANAGEMENT).count());
 
     // The task will be visible on the personal task list of Gonzo
     assertEquals(1, taskService
@@ -172,4 +186,38 @@ public class TaskCandidateTest extends PluggableProcessEngineTestCase {
     assertEquals(1, taskService.createTaskQuery().taskCandidateUser(KERMIT).list().size());
   }
 
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/usertask/groupTest.bpmn")
+  public void testInvolvedUserQuery() {
+
+    // given
+    identityService.createMembership(KERMIT, MANAGEMENT);
+
+    runtimeService.startProcessInstanceByKey("Process_13pqtqg");
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+        .taskInvolvedUser(KERMIT)
+        .list();
+
+    assertThat(tasks).hasSize(1);
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/usertask/groupTest.bpmn")
+  public void testInvolvedUserQueryOr() {
+
+    // given
+    identityService.createMembership(KERMIT, MANAGEMENT);
+
+    runtimeService.startProcessInstanceByKey("Process_13pqtqg");
+
+    // when
+    List<Task> tasks = taskService.createTaskQuery()
+        .or()
+          .taskCandidateGroup(MANAGEMENT)
+          .taskInvolvedUser(KERMIT)
+        .endOr()
+        .list();
+
+    assertThat(tasks).hasSize(2);
+  }
 }

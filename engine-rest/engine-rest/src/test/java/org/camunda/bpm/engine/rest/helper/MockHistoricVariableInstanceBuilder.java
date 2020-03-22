@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +18,8 @@ package org.camunda.bpm.engine.rest.helper;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.util.Date;
 
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
@@ -44,6 +50,9 @@ public class MockHistoricVariableInstanceBuilder {
   protected String caseExecutionId;
   protected String taskId;
   protected String tenantId;
+  protected Date createTime;
+  protected Date removalTime;
+  protected String rootProcessInstanceId;
 
   public MockHistoricVariableInstanceBuilder id(String id) {
     this.id = id;
@@ -120,6 +129,21 @@ public class MockHistoricVariableInstanceBuilder {
     return this;
   }
 
+  public MockHistoricVariableInstanceBuilder createTime(Date createTime) {
+    this.createTime = createTime;
+    return this;
+  }
+
+  public MockHistoricVariableInstanceBuilder removalTime(Date removalTime) {
+    this.removalTime = removalTime;
+    return this;
+  }
+
+  public MockHistoricVariableInstanceBuilder rootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+    return this;
+  }
+
   public String getId() {
     return id;
   }
@@ -184,6 +208,18 @@ public class MockHistoricVariableInstanceBuilder {
     return tenantId;
   }
 
+  public Date getCreateTime() {
+    return createTime;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public HistoricVariableInstance build() {
     HistoricVariableInstance mockVariable = mock(HistoricVariableInstance.class);
     when(mockVariable.getId()).thenReturn(id);
@@ -217,6 +253,9 @@ public class MockHistoricVariableInstanceBuilder {
     when(mockVariable.getCaseExecutionId()).thenReturn(caseExecutionId);
     when(mockVariable.getTaskId()).thenReturn(taskId);
     when(mockVariable.getTenantId()).thenReturn(tenantId);
+    when(mockVariable.getCreateTime()).thenReturn(createTime);
+    when(mockVariable.getRemovalTime()).thenReturn(removalTime);
+    when(mockVariable.getRootProcessInstanceId()).thenReturn(rootProcessInstanceId);
 
     return mockVariable;
   }

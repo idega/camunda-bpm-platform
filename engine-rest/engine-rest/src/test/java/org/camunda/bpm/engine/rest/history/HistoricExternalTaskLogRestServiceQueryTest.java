@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +16,8 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLog;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLogQuery;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
@@ -31,15 +35,16 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static junit.framework.TestCase.assertNotNull;
-import static org.fest.assertions.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertEquals;
@@ -471,6 +476,7 @@ public class HistoricExternalTaskLogRestServiceQueryTest extends AbstractRestSer
 
     String returnedId = from(content).getString("[0].id");
     String returnedTimestamp = from(content).getString("[0].timestamp");
+    String returnedRemovalTime = from(content).getString("[0].removalTime");
     String returnedExternalTaskId = from(content).getString("[0].externalTaskId");
     String returnedExternalTaskTopicName = from(content).getString("[0].topicName");
     String returnedExternalTaskWorkerId = from(content).getString("[0].workerId");
@@ -483,6 +489,7 @@ public class HistoricExternalTaskLogRestServiceQueryTest extends AbstractRestSer
     String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
+    String returnedRootProcessInstanceId = from(content).getString("[0].rootProcessInstanceId");
     boolean returnedCreationLog = from(content).getBoolean("[0].creationLog");
     boolean returnedFailureLog = from(content).getBoolean("[0].failureLog");
     boolean returnedSuccessLog = from(content).getBoolean("[0].successLog");
@@ -490,6 +497,7 @@ public class HistoricExternalTaskLogRestServiceQueryTest extends AbstractRestSer
 
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ID, returnedId);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TIMESTAMP, returnedTimestamp);
+    assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_REMOVAL_TIME, returnedRemovalTime);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_EXTERNAL_TASK_ID, returnedExternalTaskId);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TOPIC_NAME, returnedExternalTaskTopicName);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_WORKER_ID, returnedExternalTaskWorkerId);
@@ -502,6 +510,7 @@ public class HistoricExternalTaskLogRestServiceQueryTest extends AbstractRestSer
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_INST_ID, returnedProcessInstanceId);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_ID, returnedProcessDefinitionId);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_KEY, returnedProcessDefinitionKey);
+    assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ROOT_PROC_INST_ID, returnedRootProcessInstanceId);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_CREATION_LOG, returnedCreationLog);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_FAILURE_LOG, returnedFailureLog);
     assertEquals(MockProvider.EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_SUCCESS_LOG, returnedSuccessLog);
@@ -783,11 +792,62 @@ public class HistoricExternalTaskLogRestServiceQueryTest extends AbstractRestSer
     assertThat(returnedTenantId2).isEqualTo(MockProvider.ANOTHER_EXAMPLE_TENANT_ID);
   }
 
+  @Test
+  public void testQueryWithoutTenantIdQueryParameter() {
+    // given
+    mockedQuery = setUpMockHistoricExternalTaskLogQuery(Collections.singletonList(MockProvider.createMockHistoricExternalTaskLog(null)));
+
+    // when
+    Response response = given()
+        .queryParam("withoutTenantId", true)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when()
+        .get(HISTORIC_EXTERNAL_TASK_LOG_RESOURCE_URL);
+
+    // then
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(1);
+
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId).isEqualTo(null);
+  }
+
+  @Test
+  public void testQueryWithoutTenantIdPostParameter() {
+    // given
+    mockedQuery = setUpMockHistoricExternalTaskLogQuery(Collections.singletonList(MockProvider.createMockHistoricExternalTaskLog(null)));
+    Map<String, Object> queryParameters = Collections.singletonMap("withoutTenantId", (Object) true);
+
+    // when
+    Response response = given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(queryParameters)
+        .expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when()
+        .post(HISTORIC_EXTERNAL_TASK_LOG_RESOURCE_URL);
+
+    // then
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(1);
+
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId).isEqualTo(null);
+  }
+
   private List<HistoricExternalTaskLog> createMockHistoricExternalTaskLogsTwoTenants() {
     return Arrays.asList(
       MockProvider.createMockHistoricExternalTaskLog(MockProvider.EXAMPLE_TENANT_ID),
       MockProvider.createMockHistoricExternalTaskLog(MockProvider.ANOTHER_EXAMPLE_TENANT_ID));
   }
 
-  
 }

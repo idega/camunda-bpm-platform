@@ -1,11 +1,12 @@
 /*
- * Copyright 2016 camunda services GmbH.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -103,5 +104,29 @@ public class MigrationHistoricProcessInstanceTest {
     assertEquals(instance.getProcessDefinitionKey(), targetProcessDefinition.getKey());
   }
 
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_ACTIVITY)
+  public void testMigrateHistoryProcessInstanceState() {
+    //given
+    HistoricProcessInstanceQuery sourceHistoryProcessInstanceQuery =
+        historyService.createHistoricProcessInstanceQuery()
+          .processDefinitionId(sourceProcessDefinition.getId());
+    HistoricProcessInstanceQuery targetHistoryProcessInstanceQuery =
+        historyService.createHistoricProcessInstanceQuery()
+          .processDefinitionId(targetProcessDefinition.getId());
+
+    HistoricProcessInstance historicProcessInstanceBeforeMigration = sourceHistoryProcessInstanceQuery.singleResult();
+    assertEquals(HistoricProcessInstance.STATE_ACTIVE, historicProcessInstanceBeforeMigration.getState());
+
+    //when
+    ProcessInstanceQuery sourceProcessInstanceQuery = runtimeService.createProcessInstanceQuery().processDefinitionId(sourceProcessDefinition.getId());
+    runtimeService.newMigration(migrationPlan)
+      .processInstanceQuery(sourceProcessInstanceQuery)
+      .execute();
+
+    //then
+    HistoricProcessInstance instance = targetHistoryProcessInstanceQuery.singleResult();
+    assertEquals(historicProcessInstanceBeforeMigration.getState(), instance.getState());
+  }
 
 }

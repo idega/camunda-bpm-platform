@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -73,6 +77,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
       instruction.setSkipCustomListeners(builder.isSkipCustomListeners());
       instruction.setSkipIoMappings(builder.isSkipIoMappings());
+      instruction.setExternallyTerminated(builder.isExternallyTerminated());
       instruction.execute(commandContext);
     }
 
@@ -82,7 +87,8 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       if (processInstance.getActivity() == null) {
         // process instance was cancelled
         checkDeleteProcessInstance(processInstance, commandContext);
-        deletePropagate(processInstance, builder.getModificationReason(), builder.isSkipCustomListeners(), builder.isSkipIoMappings());
+        deletePropagate(processInstance, builder.getModificationReason(), builder.isSkipCustomListeners(), builder.isSkipIoMappings(),
+            builder.isExternallyTerminated());
       }
       else if (processInstance.isEnded()) {
         // process instance has ended regularly
@@ -95,7 +101,8 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
         processInstanceId,
         null,
         null,
-        Collections.singletonList(PropertyChange.EMPTY_CHANGE));
+        Collections.singletonList(PropertyChange.EMPTY_CHANGE),
+        builder.getAnnotation());
     }
 
     return null;
@@ -138,7 +145,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     }
   }
 
-  protected void deletePropagate(ExecutionEntity processInstance, String deleteReason, boolean skipCustomListeners, boolean skipIoMappings) {
+  protected void deletePropagate(ExecutionEntity processInstance, String deleteReason, boolean skipCustomListeners, boolean skipIoMappings, boolean externallyTerminated) {
     ExecutionEntity topmostDeletableExecution = processInstance;
     ExecutionEntity parentScopeExecution = (ExecutionEntity) topmostDeletableExecution.getParentScopeExecution(true);
 
@@ -147,7 +154,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
         parentScopeExecution = (ExecutionEntity) topmostDeletableExecution.getParentScopeExecution(true);
     }
 
-    topmostDeletableExecution.deleteCascade(deleteReason, skipCustomListeners, skipIoMappings);
+    topmostDeletableExecution.deleteCascade(deleteReason, skipCustomListeners, skipIoMappings, externallyTerminated, false);
     ModificationUtil.handleChildRemovalInScope(topmostDeletableExecution);
   }
 

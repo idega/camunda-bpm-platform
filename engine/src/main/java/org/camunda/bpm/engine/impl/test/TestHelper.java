@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.test;
 
 import org.camunda.bpm.engine.HistoryService;
@@ -64,12 +67,13 @@ public abstract class TestHelper {
   public static final String EMPTY_LINE = "                                                                                           ";
 
   public static final List<String> TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK = Arrays.asList(
-    "ACT_GE_PROPERTY"
+    "ACT_GE_PROPERTY",
+    "ACT_GE_SCHEMA_LOG"
   );
 
-  static Map<String, ProcessEngine> processEngines = new HashMap<String, ProcessEngine>();
+  static Map<String, ProcessEngine> processEngines = new HashMap<>();
 
-  public final static List<String> RESOURCE_SUFFIXES = new ArrayList<String>();
+  public final static List<String> RESOURCE_SUFFIXES = new ArrayList<>();
 
   static {
     RESOURCE_SUFFIXES.addAll(Arrays.asList(BpmnDeployer.BPMN_RESOURCE_SUFFIXES));
@@ -150,7 +154,7 @@ public abstract class TestHelper {
 
   public static void deleteDeployment(ProcessEngine processEngine, String deploymentId) {
     if(deploymentId != null) {
-      processEngine.getRepositoryService().deleteDeployment(deploymentId, true);
+      processEngine.getRepositoryService().deleteDeployment(deploymentId, true, true, true);
     }
   }
 
@@ -175,7 +179,7 @@ public abstract class TestHelper {
   }
 
   private static String createResourceName(Class< ? > type, String name, String suffix) {
-    StringBuffer r = new StringBuffer(type.getName().replace('.', '/'));
+    StringBuilder r = new StringBuilder(type.getName().replace('.', '/'));
     if (name != null) {
       r.append("." + name);
     }
@@ -221,6 +225,46 @@ public abstract class TestHelper {
       return true;
     }
   }
+
+  public static boolean annotationRequiredDatabaseCheck(ProcessEngine processEngine, Description description) {
+    RequiredDatabase annotation = description.getAnnotation(RequiredDatabase.class);
+
+    if (annotation != null) {
+      return databaseCheck(processEngine, annotation);
+
+    } else {
+      return annotationRequiredDatabaseCheck(processEngine, description.getTestClass(), description.getMethodName());
+    }
+  }
+
+  public static boolean annotationRequiredDatabaseCheck(ProcessEngine processEngine, Class<?> testClass, String methodName) {
+    RequiredDatabase annotation = getAnnotation(processEngine, testClass, methodName, RequiredDatabase.class);
+
+    if (annotation != null) {
+      return databaseCheck(processEngine, annotation);
+    } else {
+      return true;
+    }
+  }
+
+  private static boolean databaseCheck(ProcessEngine processEngine, RequiredDatabase annotation) {
+
+    ProcessEngineConfigurationImpl processEngineConfiguration = (ProcessEngineConfigurationImpl) processEngine.getProcessEngineConfiguration();
+    String actualDbType = processEngineConfiguration.getDbSqlSessionFactory().getDatabaseType();
+
+    String[] excludes = annotation.excludes();
+
+    if (excludes != null) {
+      for (String exclude : excludes) {
+        if (exclude.equals(actualDbType)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
+
 
   private static <T extends Annotation> T getAnnotation(ProcessEngine processEngine, Class<?> testClass, String methodName, Class<T> annotationClass) {
     Method method = null;
@@ -292,7 +336,8 @@ public abstract class TestHelper {
       message.append("Database is not clean:\n")
              .append(databasePurgeReport.getPurgeReportAsString());
     } else {
-      LOG.debug("Database was clean.");
+      LOG.debug(
+          purgeReport.getDatabasePurgeReport().isDbContainsLicenseKey() ? "Database contains license key but is considered clean." : "Database was clean.");
     }
     if (paRegistrationMessage != null) {
       message.append(paRegistrationMessage);
@@ -301,6 +346,7 @@ public abstract class TestHelper {
     if (fail && message.length() > 0) {
       Assert.fail(message.toString());
     }
+
     return message.toString();
   }
 

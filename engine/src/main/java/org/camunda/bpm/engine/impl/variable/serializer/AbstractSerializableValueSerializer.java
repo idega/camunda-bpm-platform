@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +16,8 @@
  */
 package org.camunda.bpm.engine.impl.variable.serializer;
 
-import javax.xml.bind.DatatypeConverter;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.digest._apacheCommonsCodec.Base64;
 import org.camunda.bpm.engine.impl.util.StringUtil;
 import org.camunda.bpm.engine.variable.impl.value.UntypedValueImpl;
 import org.camunda.bpm.engine.variable.type.SerializableValueType;
@@ -67,7 +71,7 @@ public abstract class AbstractSerializableValueSerializer<T extends Serializable
     updateTypedValue(value, serializedStringValue);
   }
 
-  public T readValue(ValueFields valueFields, boolean deserializeObjectValue) {
+  public T readValue(ValueFields valueFields, boolean deserializeObjectValue, boolean asTransientValue) {
 
     byte[] serializedByteValue = readSerializedValueFromFields(valueFields);
     String serializedStringValue = getSerializedStringValue(serializedByteValue);
@@ -81,17 +85,17 @@ public abstract class AbstractSerializableValueSerializer<T extends Serializable
           throw new ProcessEngineException("Cannot deserialize object in variable '"+valueFields.getName()+"': "+e.getMessage(), e);
         }
       }
-      T value = createDeserializedValue(deserializedObject, serializedStringValue, valueFields);
+      T value = createDeserializedValue(deserializedObject, serializedStringValue, valueFields, asTransientValue);
       return value;
     }
     else {
-      return createSerializedValue(serializedStringValue, valueFields);
+      return createSerializedValue(serializedStringValue, valueFields, asTransientValue);
     }
   }
 
-  protected abstract T createDeserializedValue(Object deserializedObject, String serializedStringValue, ValueFields valueFields);
+  protected abstract T createDeserializedValue(Object deserializedObject, String serializedStringValue, ValueFields valueFields, boolean asTransientValue);
 
-  protected abstract T createSerializedValue(String serializedStringValue, ValueFields valueFields);
+  protected abstract T createSerializedValue(String serializedStringValue, ValueFields valueFields, boolean asTransientValue);
 
   protected abstract void writeToValueFields(T value, ValueFields valueFields, byte[] serializedValue);
 
@@ -104,7 +108,7 @@ public abstract class AbstractSerializableValueSerializer<T extends Serializable
   protected String getSerializedStringValue(byte[] serializedByteValue) {
     if(serializedByteValue != null) {
       if(!isSerializationTextBased()) {
-        return DatatypeConverter.printBase64Binary(serializedByteValue);
+        serializedByteValue = Base64.encodeBase64(serializedByteValue);
       }
       return StringUtil.fromBytes(serializedByteValue);
     }
@@ -115,11 +119,9 @@ public abstract class AbstractSerializableValueSerializer<T extends Serializable
 
   protected byte[] getSerializedBytesValue(String serializedStringValue) {
     if(serializedStringValue != null) {
-      byte[] serializedByteValue = null;
+      byte[] serializedByteValue = StringUtil.toByteArray(serializedStringValue);
       if (!isSerializationTextBased()) {
-        serializedByteValue = DatatypeConverter.parseBase64Binary(serializedStringValue);
-      } else {
-        serializedByteValue = StringUtil.toByteArray(serializedStringValue);
+        serializedByteValue = Base64.decodeBase64(serializedByteValue);
       }
       return serializedByteValue;
     }

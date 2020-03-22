@@ -1,5 +1,22 @@
-<?xml version="1.0" encoding="UTF-8" ?> 
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
 
+    Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+    under one or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information regarding copyright
+    ownership. Camunda licenses this file to you under the Apache License,
+    Version 2.0; you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.ExternalTaskEntity">
@@ -19,6 +36,7 @@
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
+    <result property="processDefinitionVersionTag" column="VERSION_TAG_" jdbcType="VARCHAR" />
     <result property="activityId" column="ACT_ID_" jdbcType="VARCHAR" />
     <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
@@ -148,12 +166,13 @@
     select ${distinct} RES.*
     ${limitBetween}
     from (
-    select RES.*, PI.BUSINESS_KEY_
+    select RES.*, PI.BUSINESS_KEY_, PD.VERSION_TAG_
     from ${prefix}ACT_RU_EXT_TASK RES
 
     left join ${prefix}ACT_RU_EXECUTION PI on RES.PROC_INST_ID_ = PI.ID_
+    inner join ${prefix}ACT_RE_PROCDEF PD on RES.PROC_DEF_ID_ = PD.ID_
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+    <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause" /> 
       AUTH ON (
        (AUTH.RESOURCE_TYPE_ = 8 
@@ -179,14 +198,46 @@
       (RES.LOCK_EXP_TIME_ is null or RES.LOCK_EXP_TIME_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
       and (RES.SUSPENSION_STATE_ is null or RES.SUSPENSION_STATE_ = 1)
       and (RES.RETRIES_ is null or RES.RETRIES_ > 0)
-      <if test="parameter != null &amp;&amp; parameter.topics.size() > 0">
+      <if test="parameter != null &amp;&amp; parameter.topics.size > 0">
         and
         <foreach collection="parameter.topics" open="(" close=")" separator="or" item="topicFilters">
           RES.TOPIC_NAME_ like #{topicFilters.topicName}
-          <if test="parameter.businessKeyFilter">
+          <if test="topicFilters.businessKey">
             and PI.BUSINESS_KEY_ = #{topicFilters.businessKey}
           </if>
-          <if test="topicFilters.filterVariables.size() > 0">
+          <if test="topicFilters.processDefinitionId != null">
+            and RES.PROC_DEF_ID_ = #{topicFilters.processDefinitionId}
+          </if>
+          <if test="topicFilters.processDefinitionIds != null &amp;&amp; topicFilters.processDefinitionIds.length > 0">
+            and RES.PROC_DEF_ID_ in
+            <foreach item="item" index="index" collection="topicFilters.processDefinitionIds"
+                     open="(" separator="," close=")">
+              #{item}
+            </foreach>
+          </if>
+          <if test="topicFilters.processDefinitionKey != null">
+            and RES.PROC_DEF_KEY_ = #{topicFilters.processDefinitionKey}
+          </if>
+          <if test="topicFilters.processDefinitionKeys != null &amp;&amp; topicFilters.processDefinitionKeys.length > 0">
+            and RES.PROC_DEF_KEY_ in
+            <foreach item="item" index="index" collection="topicFilters.processDefinitionKeys"
+                     open="(" separator="," close=")">
+              #{item}
+            </foreach>
+          </if>
+          <if test="topicFilters.isTenantIdSet">
+            <if test="topicFilters.tenantIds == null" >
+              and RES.TENANT_ID_ is null
+            </if>
+            <if test="topicFilters.tenantIds != null &amp;&amp; topicFilters.tenantIds.length > 0">
+              and RES.TENANT_ID_ in
+              <foreach item="tenantId" index="index" collection="topicFilters.tenantIds"
+                       open="(" separator="," close=")">
+                #{tenantId}
+              </foreach>
+            </if>
+          </if>
+          <if test="topicFilters.filterVariables.size > 0">
             and RES.PROC_INST_ID_ in (
               select VAR.EXECUTION_ID_
               from ${prefix}ACT_RU_VARIABLE VAR
@@ -201,6 +252,9 @@
               </foreach>
               )
           </if>
+          <if test="topicFilters.processDefinitionVersionTag != null">
+            and (PD.VERSION_TAG_ like #{topicFilters.processDefinitionVersionTag})
+          </if>
         </foreach>
 
       </if>
@@ -212,6 +266,11 @@
       ${orderBy}
     </if>
     ${limitAfter}
+  </select>
+
+  <select id="selectTopicNamesByQuery" parameterType="org.camunda.bpm.engine.impl.ExternalTaskQueryImpl" resultType="string">
+    select distinct RES.TOPIC_NAME_
+    <include refid="selectExternalTaskByQueryCriteriaSql"/>
   </select>
 
   <select id="selectExternalTaskByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.ExternalTaskQueryImpl" resultMap="externalTaskResultMap">
@@ -236,8 +295,9 @@
   </select>
 
   <select id="selectExternalTaskCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.ExternalTaskQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectExternalTaskByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
 
   <sql id="selectExternalTaskByQueryCriteriaSql">
@@ -247,7 +307,7 @@
     
     left join ${prefix}ACT_RU_EXECUTION PI on RES.PROC_INST_ID_ = PI.ID_
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+    <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause" /> 
       AUTH ON (
        (AUTH.RESOURCE_TYPE_ = 8 

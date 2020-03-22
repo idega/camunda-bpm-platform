@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,11 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.history.producer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 
 import org.camunda.bpm.dmn.engine.delegate.DmnDecisionEvaluationEvent;
@@ -39,6 +43,7 @@ import org.camunda.bpm.engine.impl.history.event.HistoricDecisionEvaluationEvent
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInputInstanceEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionOutputInstanceEntity;
+import org.camunda.bpm.engine.impl.history.event.HistoricProcessInstanceEventEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -51,6 +56,8 @@ import org.camunda.bpm.engine.variable.value.IntegerValue;
 import org.camunda.bpm.engine.variable.value.LongValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
+import static org.camunda.bpm.engine.ProcessEngineConfiguration.HISTORY_REMOVAL_TIME_STRATEGY_START;
+
 /**
  * @author Philipp Ossler
  * @author Ingo Richtsmeier
@@ -62,7 +69,7 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
   public HistoryEvent createDecisionEvaluatedEvt(final DelegateExecution execution, final DmnDecisionEvaluationEvent evaluationEvent) {
     return createHistoryEvent(evaluationEvent, new HistoricDecisionInstanceSupplier() {
 
-      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent) {
+      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent, HistoricDecisionInstanceEntity rootDecisionInstance) {
         return createDecisionEvaluatedEvt(evaluationEvent, (ExecutionEntity) execution);
       }
     });
@@ -71,7 +78,7 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
   public HistoryEvent createDecisionEvaluatedEvt(final DelegateCaseExecution execution, final DmnDecisionEvaluationEvent evaluationEvent) {
     return createHistoryEvent(evaluationEvent, new HistoricDecisionInstanceSupplier() {
 
-      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent) {
+      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent, HistoricDecisionInstanceEntity rootDecisionInstance) {
         return createDecisionEvaluatedEvt(evaluationEvent, (CaseExecutionEntity) execution);
       }
     });
@@ -80,25 +87,25 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
   public HistoryEvent createDecisionEvaluatedEvt(final DmnDecisionEvaluationEvent evaluationEvent) {
     return createHistoryEvent(evaluationEvent, new HistoricDecisionInstanceSupplier() {
 
-      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent) {
-        return createDecisionEvaluatedEvt(evaluationEvent);
+      public HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent, HistoricDecisionInstanceEntity rootDecisionInstance) {
+        return createDecisionEvaluatedEvt(evaluationEvent, rootDecisionInstance);
       }
     });
   }
 
   protected interface HistoricDecisionInstanceSupplier {
-    HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent);
+    HistoricDecisionInstanceEntity createHistoricDecisionInstance(DmnDecisionLogicEvaluationEvent evaluationEvent, HistoricDecisionInstanceEntity rootDecisionInstance);
   }
 
   protected HistoryEvent createHistoryEvent(DmnDecisionEvaluationEvent evaluationEvent, HistoricDecisionInstanceSupplier supplier) {
     HistoricDecisionEvaluationEvent event = newDecisionEvaluationEvent(evaluationEvent);
 
-    HistoricDecisionInstanceEntity rootDecisionEvent = supplier.createHistoricDecisionInstance(evaluationEvent.getDecisionResult());
+    HistoricDecisionInstanceEntity rootDecisionEvent = supplier.createHistoricDecisionInstance(evaluationEvent.getDecisionResult(), null);
     event.setRootHistoricDecisionInstance(rootDecisionEvent);
 
     List<HistoricDecisionInstanceEntity> requiredDecisionEvents = new ArrayList<HistoricDecisionInstanceEntity>();
     for (DmnDecisionLogicEvaluationEvent requiredDecisionResult : evaluationEvent.getRequiredDecisionResults()) {
-      HistoricDecisionInstanceEntity requiredDecisionEvent = supplier.createHistoricDecisionInstance(requiredDecisionResult);
+      HistoricDecisionInstanceEntity requiredDecisionEvent = supplier.createHistoricDecisionInstance(requiredDecisionResult, rootDecisionEvent);
       requiredDecisionEvents.add(requiredDecisionEvent);
     }
     event.setRequiredHistoricDecisionInstances(requiredDecisionEvents);
@@ -109,11 +116,14 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
   protected HistoricDecisionInstanceEntity createDecisionEvaluatedEvt(DmnDecisionLogicEvaluationEvent evaluationEvent, ExecutionEntity execution) {
     // create event instance
     HistoricDecisionInstanceEntity event = newDecisionInstanceEventEntity(execution, evaluationEvent);
+    setReferenceToProcessInstance(event, execution);
+
+    if (isHistoryRemovalTimeStrategyStart()) {
+      provideRemovalTime(event);
+    }
+
     // initialize event
     initDecisionInstanceEvent(event, evaluationEvent, HistoryEventTypes.DMN_DECISION_EVALUATE);
-    setReferenceToProcessInstance(event, execution);
-    // set current time as evaluation time
-    event.setEvaluationTime(ClockUtil.getCurrentTime());
 
     DecisionDefinition decisionDefinition = (DecisionDefinition) evaluationEvent.getDecision();
     String tenantId = execution.getTenantId();
@@ -130,8 +140,6 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     // initialize event
     initDecisionInstanceEvent(event, evaluationEvent, HistoryEventTypes.DMN_DECISION_EVALUATE);
     setReferenceToCaseInstance(event, execution);
-    // set current time as evaluation time
-    event.setEvaluationTime(ClockUtil.getCurrentTime());
 
     DecisionDefinition decisionDefinition = (DecisionDefinition) evaluationEvent.getDecision();
     String tenantId = execution.getTenantId();
@@ -142,13 +150,12 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     return event;
   }
 
-  protected HistoricDecisionInstanceEntity createDecisionEvaluatedEvt(DmnDecisionLogicEvaluationEvent evaluationEvent) {
+  protected HistoricDecisionInstanceEntity createDecisionEvaluatedEvt(DmnDecisionLogicEvaluationEvent evaluationEvent, HistoricDecisionInstanceEntity rootDecisionInstance) {
     // create event instance
     HistoricDecisionInstanceEntity event = newDecisionInstanceEventEntity(evaluationEvent);
     // initialize event
-    initDecisionInstanceEvent(event, evaluationEvent, HistoryEventTypes.DMN_DECISION_EVALUATE);
-    // set current time as evaluation time
-    event.setEvaluationTime(ClockUtil.getCurrentTime());
+    initDecisionInstanceEvent(event, evaluationEvent, HistoryEventTypes.DMN_DECISION_EVALUATE, rootDecisionInstance);
+
     // set the user id if there is an authenticated user and no process instance
     setUserId(event);
 
@@ -178,6 +185,10 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
   }
 
   protected void initDecisionInstanceEvent(HistoricDecisionInstanceEntity event, DmnDecisionLogicEvaluationEvent evaluationEvent, HistoryEventTypes eventType) {
+    initDecisionInstanceEvent(event, evaluationEvent, eventType, null);
+  }
+
+  protected void initDecisionInstanceEvent(HistoricDecisionInstanceEntity event, DmnDecisionLogicEvaluationEvent evaluationEvent, HistoryEventTypes eventType, HistoricDecisionInstanceEntity rootDecisionInstance) {
     event.setEventType(eventType.getEventName());
 
     DecisionDefinition decision = (DecisionDefinition) evaluationEvent.getDecision();
@@ -188,6 +199,19 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     if (decision.getDecisionRequirementsDefinitionId() != null) {
       event.setDecisionRequirementsDefinitionId(decision.getDecisionRequirementsDefinitionId());
       event.setDecisionRequirementsDefinitionKey(decision.getDecisionRequirementsDefinitionKey());
+    }
+
+    // set current time as evaluation time
+    event.setEvaluationTime(ClockUtil.getCurrentTime());
+
+    if (event.getRootProcessInstanceId() == null && event.getCaseInstanceId() == null) {
+
+      if (rootDecisionInstance != null) {
+        event.setRemovalTime(rootDecisionInstance.getRemovalTime());
+      } else {
+        Date removalTime = calculateRemovalTime(event, decision);
+        event.setRemovalTime(removalTime);
+      }
     }
 
     if (evaluationEvent instanceof DmnDecisionTableEvaluationEvent) {
@@ -208,16 +232,15 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
       event.setCollectResultValue(collectResultValue);
     }
 
-    List<HistoricDecisionInputInstance> historicDecisionInputInstances = createHistoricDecisionInputInstances(evaluationEvent);
+    List<HistoricDecisionInputInstance> historicDecisionInputInstances = createHistoricDecisionInputInstances(evaluationEvent, event.getRootProcessInstanceId(), event.getRemovalTime());
     event.setInputs(historicDecisionInputInstances);
 
-    List<HistoricDecisionOutputInstance> historicDecisionOutputInstances = createHistoricDecisionOutputInstances(evaluationEvent);
+    List<HistoricDecisionOutputInstance> historicDecisionOutputInstances = createHistoricDecisionOutputInstances(evaluationEvent, event.getRootProcessInstanceId(), event.getRemovalTime());
     event.setOutputs(historicDecisionOutputInstances);
   }
 
   protected Double getCollectResultValue(TypedValue collectResultValue) {
     // the built-in collect aggregators return only numbers
-
     if(collectResultValue instanceof IntegerValue) {
       return ((IntegerValue) collectResultValue).getValue().doubleValue();
 
@@ -232,14 +255,15 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     }
   }
 
-  protected List<HistoricDecisionInputInstance> createHistoricDecisionInputInstances(DmnDecisionTableEvaluationEvent evaluationEvent) {
+  protected List<HistoricDecisionInputInstance> createHistoricDecisionInputInstances(DmnDecisionTableEvaluationEvent evaluationEvent, String rootProcessInstanceId, Date removalTime) {
     List<HistoricDecisionInputInstance> inputInstances = new ArrayList<HistoricDecisionInputInstance>();
 
     for(DmnEvaluatedInput inputClause : evaluationEvent.getInputs()) {
 
-      HistoricDecisionInputInstanceEntity inputInstance = new HistoricDecisionInputInstanceEntity();
+      HistoricDecisionInputInstanceEntity inputInstance = new HistoricDecisionInputInstanceEntity(rootProcessInstanceId, removalTime);
       inputInstance.setClauseId(inputClause.getId());
       inputInstance.setClauseName(inputClause.getName());
+      inputInstance.setCreateTime(ClockUtil.getCurrentTime());
 
       TypedValue typedValue = Variables.untypedValue(inputClause.getValue());
       inputInstance.setValue(typedValue);
@@ -250,7 +274,7 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     return inputInstances;
   }
 
-  protected List<HistoricDecisionOutputInstance> createHistoricDecisionOutputInstances(DmnDecisionTableEvaluationEvent evaluationEvent) {
+  protected List<HistoricDecisionOutputInstance> createHistoricDecisionOutputInstances(DmnDecisionTableEvaluationEvent evaluationEvent, String rootProcessInstanceId, Date removalTime) {
     List<HistoricDecisionOutputInstance> outputInstances = new ArrayList<HistoricDecisionOutputInstance>();
 
     List<DmnEvaluatedDecisionRule> matchingRules = evaluationEvent.getMatchingRules();
@@ -262,9 +286,10 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
 
       for(DmnEvaluatedOutput outputClause : rule.getOutputEntries().values()) {
 
-        HistoricDecisionOutputInstanceEntity outputInstance = new HistoricDecisionOutputInstanceEntity();
+        HistoricDecisionOutputInstanceEntity outputInstance = new HistoricDecisionOutputInstanceEntity(rootProcessInstanceId, removalTime);
         outputInstance.setClauseId(outputClause.getId());
         outputInstance.setClauseName(outputClause.getName());
+        outputInstance.setCreateTime(ClockUtil.getCurrentTime());
 
         outputInstance.setRuleId(ruleId);
         outputInstance.setRuleOrder(ruleOrder);
@@ -283,7 +308,7 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     // no inputs for expression
     event.setInputs(Collections.<HistoricDecisionInputInstance> emptyList());
 
-    HistoricDecisionOutputInstanceEntity outputInstance = new HistoricDecisionOutputInstanceEntity();
+    HistoricDecisionOutputInstanceEntity outputInstance = new HistoricDecisionOutputInstanceEntity(event.getRootProcessInstanceId(), event.getRemovalTime());
     outputInstance.setVariableName(evaluationEvent.getOutputName());
     outputInstance.setValue(evaluationEvent.getOutputValue());
 
@@ -294,6 +319,7 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
     event.setProcessDefinitionKey(getProcessDefinitionKey(execution));
     event.setProcessDefinitionId(execution.getProcessDefinitionId());
 
+    event.setRootProcessInstanceId(execution.getRootProcessInstanceId());
     event.setProcessInstanceId(execution.getProcessInstanceId());
     event.setExecutionId(execution.getId());
 
@@ -363,6 +389,39 @@ public class DefaultDmnHistoryEventProducer implements DmnHistoryEventProducer {
 
   protected DelegateCaseExecution getCaseExecution(HistoricDecisionInstanceEntity event) {
       return Context.getCommandContext().getCaseExecutionManager().findCaseExecutionById(event.getCaseExecutionId());
+  }
+
+  protected Date calculateRemovalTime(HistoricDecisionInstanceEntity historicDecisionInstance, DecisionDefinition decisionDefinition) {
+    return Context.getProcessEngineConfiguration()
+      .getHistoryRemovalTimeProvider()
+      .calculateRemovalTime(historicDecisionInstance, decisionDefinition);
+  }
+
+  protected void provideRemovalTime(HistoryEvent historyEvent) {
+    String rootProcessInstanceId = historyEvent.getRootProcessInstanceId();
+    if (rootProcessInstanceId != null) {
+      HistoricProcessInstanceEventEntity historicRootProcessInstance =
+        getHistoricRootProcessInstance(rootProcessInstanceId);
+
+      if (historicRootProcessInstance != null) {
+        Date removalTime = historicRootProcessInstance.getRemovalTime();
+        historyEvent.setRemovalTime(removalTime);
+      }
+    }
+  }
+
+  protected boolean isHistoryRemovalTimeStrategyStart() {
+    return HISTORY_REMOVAL_TIME_STRATEGY_START.equals(getHistoryRemovalTimeStrategy());
+  }
+
+  protected String getHistoryRemovalTimeStrategy() {
+    return Context.getProcessEngineConfiguration()
+      .getHistoryRemovalTimeStrategy();
+  }
+
+  protected HistoricProcessInstanceEventEntity getHistoricRootProcessInstance(String rootProcessInstanceId) {
+    return Context.getCommandContext().getDbEntityManager()
+      .selectById(HistoricProcessInstanceEventEntity.class, rootProcessInstanceId);
   }
 
 }

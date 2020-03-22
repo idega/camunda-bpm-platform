@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,11 +14,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.ANOTHER_EXAMPLE_ACTIVITY_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.ANOTHER_EXAMPLE_PROCESS_DEFINITION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID;
@@ -31,8 +34,7 @@ import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_ACTIV
 import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_PROCESS_DEFINITION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockBatch;
 import static org.camunda.bpm.engine.rest.helper.NoIntermediaryInvocation.immediatelyAfter;
-import static org.fest.assertions.Assertions.assertThat;
-import static org.fest.assertions.MapAssert.entry;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -87,7 +89,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.response.Response;
+import io.restassured.response.Response;
 import java.util.List;
 import org.camunda.bpm.engine.rest.util.migration.MigrationInstructionDtoBuilder;
 
@@ -1359,17 +1361,14 @@ public class MigrationRestServiceInteractionTest extends AbstractRestServiceTest
 
     assertThat(instructions).hasSize(2);
     assertThat(instructions.get(0))
-      .includes(
-        entry("sourceActivityIds", Collections.singletonList(EXAMPLE_ACTIVITY_ID)),
-        entry("targetActivityIds", Collections.singletonList(ANOTHER_EXAMPLE_ACTIVITY_ID)),
-        entry("updateEventTrigger", false)
-      );
+        .containsEntry("sourceActivityIds", Collections.singletonList(EXAMPLE_ACTIVITY_ID))
+        .containsEntry("targetActivityIds", Collections.singletonList(ANOTHER_EXAMPLE_ACTIVITY_ID))
+        .containsEntry("updateEventTrigger", false);
+
     assertThat(instructions.get(1))
-      .includes(
-        entry("sourceActivityIds", Collections.singletonList(ANOTHER_EXAMPLE_ACTIVITY_ID)),
-        entry("targetActivityIds", Collections.singletonList(EXAMPLE_ACTIVITY_ID)),
-        entry("updateEventTrigger", false)
-      );
+        .containsEntry("sourceActivityIds", Collections.singletonList(ANOTHER_EXAMPLE_ACTIVITY_ID))
+        .containsEntry("targetActivityIds", Collections.singletonList(EXAMPLE_ACTIVITY_ID))
+        .containsEntry("updateEventTrigger", false);
   }
 
   protected void verifyGenerateMigrationPlanInteraction(MigrationPlanBuilder migrationPlanBuilderMock, Map<String, Object> initialMigrationPlan) {

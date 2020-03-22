@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +19,7 @@ package org.camunda.bpm.engine.rest.history;
 import javax.ws.rs.core.Response.Status;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.BatchWindowManager;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.DefaultBatchWindowManager;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupHelper;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
@@ -27,8 +32,8 @@ import org.camunda.bpm.engine.runtime.Job;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
-import com.jayway.restassured.http.ContentType;
-import static com.jayway.restassured.RestAssured.given;
+import io.restassured.http.ContentType;
+import static io.restassured.RestAssured.given;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -154,6 +159,7 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowStartTime()).thenReturn("23:59+0200");
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowEndTime()).thenReturn("00:00+0200");
     when(processEngineConfigurationImplMock.getBatchWindowManager()).thenReturn(new DefaultBatchWindowManager());
+    when(processEngineConfigurationImplMock.isHistoryCleanupEnabled()).thenReturn(true);
 
     SimpleDateFormat sdf = new SimpleDateFormat(JacksonConfigurator.dateFormatString);
     Date now = sdf.parse("2017-09-01T22:00:00.000+0200");
@@ -173,6 +179,7 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
       .statusCode(Status.OK.getStatusCode())
       .body("batchWindowStartTime", containsString(sdf.format(dateToday)))
       .body("batchWindowEndTime", containsString(sdf.format(dateTomorrow)))
+      .body("enabled", equalTo(true))
     .when()
       .get(CONFIGURATION_URL);
 
@@ -187,6 +194,7 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowStartTime()).thenReturn("22:00+0200");
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowEndTime()).thenReturn("23:00+0200");
     when(processEngineConfigurationImplMock.getBatchWindowManager()).thenReturn(new DefaultBatchWindowManager());
+    when(processEngineConfigurationImplMock.isHistoryCleanupEnabled()).thenReturn(true);
 
     SimpleDateFormat sdf = new SimpleDateFormat(JacksonConfigurator.dateFormatString);
     Date now = sdf.parse("2017-09-01T22:00:00.000+0200");
@@ -204,6 +212,7 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
       .statusCode(Status.OK.getStatusCode())
       .body("batchWindowStartTime", containsString(sdf.format(dateToday)))
       .body("batchWindowEndTime", containsString(sdf.format(dateTomorrow)))
+      .body("enabled", equalTo(true))
     .when()
       .get(CONFIGURATION_URL);
 
@@ -215,6 +224,7 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
     when(processEngine.getProcessEngineConfiguration()).thenReturn(processEngineConfigurationImplMock);
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowStartTime()).thenReturn(null);
     when(processEngineConfigurationImplMock.getHistoryCleanupBatchWindowEndTime()).thenReturn(null);
+    when(processEngineConfigurationImplMock.isHistoryCleanupEnabled()).thenReturn(true);
     when(processEngineConfigurationImplMock.getBatchWindowManager()).thenReturn(new DefaultBatchWindowManager());
 
     given()
@@ -223,9 +233,30 @@ public class HistoryCleanupRestServiceInteractionTest extends AbstractRestServic
       .statusCode(Status.OK.getStatusCode())
       .body("batchWindowStartTime", equalTo(null))
       .body("batchWindowEndTime", equalTo(null))
+      .body("enabled", equalTo(true))
     .when()
       .get(CONFIGURATION_URL);
 
+  }
+
+  @Test
+  public void shouldReturnEnabledFalse() {
+    ProcessEngineConfigurationImpl engineConfigMock = mock(ProcessEngineConfigurationImpl.class);
+    when(processEngine.getProcessEngineConfiguration()).thenReturn(engineConfigMock);
+
+    BatchWindowManager batchWindowManager = mock(BatchWindowManager.class);
+    when(engineConfigMock.getBatchWindowManager()).thenReturn(batchWindowManager);
+    when(engineConfigMock.isHistoryCleanupEnabled()).thenReturn(false);
+
+    given()
+      .contentType(ContentType.JSON)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body("batchWindowStartTime", equalTo(null))
+      .body("batchWindowEndTime", equalTo(null))
+      .body("enabled", equalTo(false))
+    .when()
+      .get(CONFIGURATION_URL);
   }
 
 }

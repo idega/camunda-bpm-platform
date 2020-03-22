@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +24,9 @@ import static org.camunda.bpm.engine.authorization.Permissions.READ_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Permissions.READ_TASK;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_INSTANCE;
+import static org.camunda.bpm.engine.authorization.ProcessDefinitionPermissions.READ_INSTANCE_VARIABLE;
+import static org.camunda.bpm.engine.authorization.ProcessDefinitionPermissions.READ_HISTORY_VARIABLE;
+import static org.camunda.bpm.engine.authorization.TaskPermissions.READ_VARIABLE;
 import static org.camunda.bpm.engine.authorization.Resources.AUTHORIZATION;
 import static org.camunda.bpm.engine.authorization.Resources.BATCH;
 import static org.camunda.bpm.engine.authorization.Resources.DECISION_DEFINITION;
@@ -28,9 +35,8 @@ import static org.camunda.bpm.engine.authorization.Resources.DEPLOYMENT;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Resources.TASK;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +51,7 @@ import org.camunda.bpm.engine.authorization.MissingAuthorization;
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resource;
+import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.impl.AbstractQuery;
 import org.camunda.bpm.engine.impl.ActivityStatisticsQueryImpl;
 import org.camunda.bpm.engine.impl.AuthorizationQueryImpl;
@@ -88,7 +95,7 @@ import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDef
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
-import org.camunda.bpm.engine.impl.util.CollectionUtil;
+import org.camunda.bpm.engine.impl.util.ResourceTypeUtil;
 
 /**
  * @author Daniel Meyer
@@ -113,10 +120,6 @@ public class AuthorizationManager extends AbstractManager {
   protected Set<String> availableAuthorizedGroupIds = null;
 
   protected Boolean isRevokeAuthCheckUsed = null;
-
-  public PermissionCheck newPermissionCheck() {
-    return new PermissionCheck();
-  }
 
   public PermissionCheckBuilder newPermissionCheckBuilder() {
     return new PermissionCheckBuilder();
@@ -180,15 +183,6 @@ public class AuthorizationManager extends AbstractManager {
 
   // authorization checks ///////////////////////////////////////////
 
-  public void checkAuthorization(PermissionCheck... permissionChecks) {
-    ensureNotNull("permissionChecks", (Object[]) permissionChecks);
-    for (PermissionCheck permissionCheck : permissionChecks) {
-      ensureNotNull("permissionCheck", permissionCheck);
-    }
-
-    checkAuthorization(CollectionUtil.asArrayList(permissionChecks));
-  }
-
   public void checkAuthorization(CompositePermissionCheck compositePermissionCheck) {
     if(isAuthCheckExecuted()) {
 
@@ -211,29 +205,6 @@ public class AuthorizationManager extends AbstractManager {
       }
     }
   }
-
-  public void checkAuthorization(List<PermissionCheck> permissionChecks) {
-    if(isAuthCheckExecuted()) {
-
-      Authentication currentAuthentication = getCurrentAuthentication();
-      String userId = currentAuthentication.getUserId();
-      boolean isAuthorized = isAuthorized(userId, currentAuthentication.getGroupIds(), permissionChecks);
-      if (!isAuthorized) {
-
-        List<MissingAuthorization> missingAuthorizations = new ArrayList<MissingAuthorization>();
-
-        for (PermissionCheck check: permissionChecks) {
-          missingAuthorizations.add(new MissingAuthorization(
-              check.getPermission().getName(),
-              check.getResource().resourceName(),
-              check.getResourceId()));
-        }
-
-        throw new AuthorizationException(userId, missingAuthorizations);
-      }
-    }
-  }
-
 
   public void checkAuthorization(Permission permission, Resource resource) {
     checkAuthorization(permission, resource, null);
@@ -271,26 +242,32 @@ public class AuthorizationManager extends AbstractManager {
   }
 
   public boolean isAuthorized(String userId, List<String> groupIds, Permission permission, Resource resource, String resourceId) {
-    PermissionCheck permCheck = newPermissionCheck();
-    permCheck.setPermission(permission);
-    permCheck.setResource(resource);
-    permCheck.setResourceId(resourceId);
+    if (!isPermissionDisabled(permission)) {
+      PermissionCheck permCheck = new PermissionCheck();
+      permCheck.setPermission(permission);
+      permCheck.setResource(resource);
+      permCheck.setResourceId(resourceId);
 
-    ArrayList<PermissionCheck> permissionChecks = new ArrayList<PermissionCheck>();
-    permissionChecks.add(permCheck);
-
-    return isAuthorized(userId, groupIds, permissionChecks);
+      return isAuthorized(userId, groupIds, permCheck);
+    } else {
+      return true;
+    }
   }
 
-  public boolean isAuthorized(String userId, List<String> groupIds, List<PermissionCheck> permissionChecks) {
+  public boolean isAuthorized(String userId, List<String> groupIds, PermissionCheck permissionCheck) {
     if(!isAuthorizationEnabled()) {
       return true;
+    }
+
+    if (!isResourceValidForPermission(permissionCheck)) {
+      throw LOG.invalidResourceForPermission(permissionCheck.getResource().resourceName(), permissionCheck.getPermission().getName());
     }
 
     List<String> filteredGroupIds = filterAuthenticatedGroupIds(groupIds);
 
     boolean isRevokeAuthorizationCheckEnabled = isRevokeAuthCheckEnabled(userId, groupIds);
-    AuthorizationCheck authCheck = new AuthorizationCheck(userId, filteredGroupIds, permissionChecks, isRevokeAuthorizationCheckEnabled);
+    CompositePermissionCheck compositePermissionCheck = createCompositePermissionCheck(permissionCheck);
+    AuthorizationCheck authCheck = new AuthorizationCheck(userId, filteredGroupIds, compositePermissionCheck, isRevokeAuthorizationCheckEnabled);
     return getDbEntityManager().selectBoolean("isUserAuthorizedForResource", authCheck);
   }
 
@@ -320,7 +297,18 @@ public class AuthorizationManager extends AbstractManager {
     return isRevokeAuthCheckEnabled;
   }
 
+  protected CompositePermissionCheck createCompositePermissionCheck(PermissionCheck permissionCheck) {
+    CompositePermissionCheck compositePermissionCheck = new CompositePermissionCheck();
+    compositePermissionCheck.setAtomicChecks(Arrays.asList(permissionCheck));
+    return compositePermissionCheck;
+  }
+
   public boolean isAuthorized(String userId, List<String> groupIds, CompositePermissionCheck compositePermissionCheck) {
+    for (PermissionCheck permissionCheck : compositePermissionCheck.getAllPermissionChecks()) {
+      if (!isResourceValidForPermission(permissionCheck)) {
+        throw LOG.invalidResourceForPermission(permissionCheck.getResource().resourceName(), permissionCheck.getPermission().getName());
+      }
+    }
     List<String> filteredGroupIds = filterAuthenticatedGroupIds(groupIds);
 
     boolean isRevokeAuthorizationCheckEnabled = isRevokeAuthCheckEnabled(userId, groupIds);
@@ -338,6 +326,24 @@ public class AuthorizationManager extends AbstractManager {
       return true;
     }
   }
+
+  protected boolean isResourceValidForPermission(PermissionCheck permissionCheck) {
+    Resource[] permissionResources = permissionCheck.getPermission().getTypes();
+    Resource givenResource = permissionCheck.getResource();
+    return ResourceTypeUtil.resourceIsContainedInArray(givenResource.resourceType(), permissionResources);
+  }
+
+  public void validateResourceCompatibility(AuthorizationEntity authorization) {
+    int resourceType = authorization.getResourceType();
+    Set<Permission> permissionSet = authorization.getCachedPermissions();
+
+    for (Permission permission : permissionSet) {
+      if (!ResourceTypeUtil.resourceIsContainedInArray(resourceType, permission.getTypes())) {
+        throw LOG.invalidResourceForAuthorization(resourceType, permission.getName());
+      }
+    }
+  }
+
 
   // authorization checks on queries ////////////////////////////////
 
@@ -391,19 +397,22 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureQuery(AbstractQuery query, Resource resource, String queryParam, Permission permission) {
     configureQuery(query);
-    addPermissionCheck(query, resource, queryParam, permission);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .atomicCheck(resource, queryParam, permission)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
-  protected void addPermissionCheck(ListQueryParameterObject query, Resource resource, String queryParam, Permission permission) {
-    CommandContext commandContext = getCommandContext();
-    if (isAuthorizationEnabled() && getCurrentAuthentication() != null && commandContext.isAuthorizationCheckEnabled()) {
-      PermissionCheck permCheck = newPermissionCheck();
-      permCheck.setResource(resource);
-      permCheck.setResourceIdQueryParam(queryParam);
-      permCheck.setPermission(permission);
-
-      query.getAuthCheck().addAtomicPermissionCheck(permCheck);
+  public boolean isPermissionDisabled(Permission permission) {
+    List<String> disabledPermissions = getCommandContext().getProcessEngineConfiguration().getDisabledPermissions();
+    if (disabledPermissions != null) {
+      for (String disabledPermission : disabledPermissions) {
+        if (permission.getName().equals(disabledPermission)) {
+          return true;
+        }
+      }
     }
+    return false;
   }
 
   protected void addPermissionCheck(AuthorizationCheck authCheck, CompositePermissionCheck compositeCheck) {
@@ -488,7 +497,7 @@ public class AuthorizationManager extends AbstractManager {
    * @param authentication
    *          authentication to check, cannot be <code>null</code>
    * @return <code>true</code> if the given authentication contains the group
-   *         {@link Groups#CAMUNDA_ADMIN}
+   *         {@link Groups#CAMUNDA_ADMIN} or the user
    */
   public boolean isCamundaAdmin(Authentication authentication) {
     List<String> groupIds = authentication.getGroupIds();
@@ -501,6 +510,14 @@ public class AuthorizationManager extends AbstractManager {
         }
       }
     }
+
+    String userId = authentication.getUserId();
+    if (userId != null) {
+      CommandContext commandContext = Context.getCommandContext();
+      List<String> adminUsers = commandContext.getProcessEngineConfiguration().getAdminUsers();
+      return adminUsers != null && adminUsers.contains(userId);
+    }
+
     return false;
   }
 
@@ -516,14 +533,40 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureProcessDefinitionQuery(ProcessDefinitionQueryImpl query) {
     configureQuery(query, PROCESS_DEFINITION, "RES.KEY_");
+
+    if (query.isStartablePermissionCheck()) {
+      AuthorizationCheck authorizationCheck = query.getAuthCheck();
+
+      if (!authorizationCheck.isRevokeAuthorizationCheckEnabled()) {
+        CompositePermissionCheck permCheck = new PermissionCheckBuilder()
+            .atomicCheck(PROCESS_DEFINITION, "RES.KEY_", Permissions.CREATE_INSTANCE)
+            .build();
+
+        query.addProcessDefinitionCreatePermissionCheck(permCheck);
+
+      } else {
+        CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+            .conjunctive()
+            .atomicCheck(PROCESS_DEFINITION, "RES.KEY_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "RES.KEY_", Permissions.CREATE_INSTANCE)
+            .build();
+        addPermissionCheck(authorizationCheck, permissionCheck);
+      }
+
+    }
+
   }
 
   // execution/process instance query ////////////////////////
 
   public void configureExecutionQuery(AbstractQuery query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
-    addPermissionCheck(query, PROCESS_DEFINITION, "P.KEY_", READ_INSTANCE);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .disjunctive()
+        .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
+        .atomicCheck(PROCESS_DEFINITION, "P.KEY_", READ_INSTANCE)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   // task query //////////////////////////////////////////////
@@ -549,21 +592,32 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureEventSubscriptionQuery(EventSubscriptionQueryImpl query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
-    addPermissionCheck(query, PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
+            .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   public void configureConditionalEventSubscriptionQuery(ListQueryParameterObject query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_DEFINITION, "P.KEY_", READ);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .atomicCheck(PROCESS_DEFINITION, "P.KEY_", READ)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   // incident query ///////////////////////////////////////
 
   public void configureIncidentQuery(IncidentQueryImpl query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
-    addPermissionCheck(query, PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
+            .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   // variable instance query /////////////////////////////
@@ -573,13 +627,21 @@ public class AuthorizationManager extends AbstractManager {
 
     if(query.getAuthCheck().isAuthorizationCheckEnabled()) {
 
-
-      CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+      CompositePermissionCheck permissionCheck;
+      if (isEnsureSpecificVariablePermission()) {
+        permissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE_VARIABLE)
+            .atomicCheck(TASK, "RES.TASK_ID_", READ_VARIABLE)
+            .build();
+      } else {
+        permissionCheck = new PermissionCheckBuilder()
               .disjunctive()
               .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
               .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
               .atomicCheck(TASK, "RES.TASK_ID_", READ)
               .build();
+      }
         addPermissionCheck(query.getAuthCheck(), permissionCheck);
     }
   }
@@ -594,8 +656,12 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureJobQuery(JobQueryImpl query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROCESS_INSTANCE_ID_", READ);
-    addPermissionCheck(query, PROCESS_DEFINITION, "RES.PROCESS_DEF_KEY_", READ_INSTANCE);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .disjunctive()
+        .atomicCheck(PROCESS_INSTANCE, "RES.PROCESS_INSTANCE_ID_", READ)
+        .atomicCheck(PROCESS_DEFINITION, "RES.PROCESS_DEF_KEY_", READ_INSTANCE)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   /* HISTORY */
@@ -621,7 +687,11 @@ public class AuthorizationManager extends AbstractManager {
   // historic variable instance query ////////////////////////////////
 
   public void configureHistoricVariableInstanceQuery(HistoricVariableInstanceQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
+    Permission readPermission = READ_HISTORY;
+    if (isEnsureSpecificVariablePermission()) {
+      readPermission = READ_HISTORY_VARIABLE;
+    }
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_",  readPermission);
   }
 
   // historic detail query ////////////////////////////////
@@ -661,7 +731,13 @@ public class AuthorizationManager extends AbstractManager {
   // user operation log query ///////////////////////////////
 
   public void configureUserOperationLogQuery(UserOperationLogQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .disjunctive()
+          .atomicCheck(PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY)
+          .atomicCheck(Resources.OPERATION_LOG_CATEGORY, "RES.CATEGORY_", READ)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   // batch
@@ -681,50 +757,32 @@ public class AuthorizationManager extends AbstractManager {
 
     if(query.getAuthCheck().isAuthorizationCheckEnabled()) {
 
-      PermissionCheck firstProcessInstancePermissionCheck = newPermissionCheck();
-      firstProcessInstancePermissionCheck.setResource(PROCESS_INSTANCE);
-      firstProcessInstancePermissionCheck.setPermission(READ);
-      firstProcessInstancePermissionCheck.setResourceIdQueryParam("EXECUTION.PROC_INST_ID_");
+      CompositePermissionCheck processInstancePermissionCheck = new PermissionCheckBuilder()
+          .disjunctive()
+          .atomicCheck(PROCESS_INSTANCE, "EXECUTION.PROC_INST_ID_", READ)
+          .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
+          .build();
 
-      PermissionCheck secondProcessInstancePermissionCheck = newPermissionCheck();
-      secondProcessInstancePermissionCheck.setResource(PROCESS_DEFINITION);
-      secondProcessInstancePermissionCheck.setPermission(READ_INSTANCE);
-      secondProcessInstancePermissionCheck.setResourceIdQueryParam("PROCDEF.KEY_");
-      secondProcessInstancePermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-      query.addProcessInstancePermissionCheck(firstProcessInstancePermissionCheck);
-      query.addProcessInstancePermissionCheck(secondProcessInstancePermissionCheck);
+      query.addProcessInstancePermissionCheck(processInstancePermissionCheck.getAllPermissionChecks());
 
       if (query.isFailedJobsToInclude()) {
-        PermissionCheck firstJobPermissionCheck = newPermissionCheck();
-        firstJobPermissionCheck.setResource(PROCESS_INSTANCE);
-        firstJobPermissionCheck.setPermission(READ);
-        firstJobPermissionCheck.setResourceIdQueryParam("JOB.PROCESS_INSTANCE_ID_");
+        CompositePermissionCheck jobPermissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "JOB.PROCESS_INSTANCE_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "JOB.PROCESS_DEF_KEY_", READ_INSTANCE)
+            .build();
 
-        PermissionCheck secondJobPermissionCheck = newPermissionCheck();
-        secondJobPermissionCheck.setResource(PROCESS_DEFINITION);
-        secondJobPermissionCheck.setPermission(READ_INSTANCE);
-        secondJobPermissionCheck.setResourceIdQueryParam("JOB.PROCESS_DEF_KEY_");
-        secondJobPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-        query.addJobPermissionCheck(firstJobPermissionCheck);
-        query.addJobPermissionCheck(secondJobPermissionCheck);
+        query.addJobPermissionCheck(jobPermissionCheck.getAllPermissionChecks());
       }
 
       if (query.isIncidentsToInclude()) {
-        PermissionCheck firstIncidentPermissionCheck = newPermissionCheck();
-        firstIncidentPermissionCheck.setResource(PROCESS_INSTANCE);
-        firstIncidentPermissionCheck.setPermission(READ);
-        firstIncidentPermissionCheck.setResourceIdQueryParam("INC.PROC_INST_ID_");
+        CompositePermissionCheck incidentPermissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "INC.PROC_INST_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
+            .build();
 
-        PermissionCheck secondIncidentPermissionCheck = newPermissionCheck();
-        secondIncidentPermissionCheck.setResource(PROCESS_DEFINITION);
-        secondIncidentPermissionCheck.setPermission(READ_INSTANCE);
-        secondIncidentPermissionCheck.setResourceIdQueryParam("PROCDEF.KEY_");
-        secondIncidentPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-        query.addIncidentPermissionCheck(firstIncidentPermissionCheck);
-        query.addIncidentPermissionCheck(secondIncidentPermissionCheck);
+        query.addIncidentPermissionCheck(incidentPermissionCheck.getAllPermissionChecks());
 
       }
     }
@@ -743,50 +801,41 @@ public class AuthorizationManager extends AbstractManager {
 
     if(query.getAuthCheck().isAuthorizationCheckEnabled()) {
 
-      PermissionCheck firstProcessInstancePermissionCheck = newPermissionCheck();
-      firstProcessInstancePermissionCheck.setResource(PROCESS_INSTANCE);
-      firstProcessInstancePermissionCheck.setPermission(READ);
-      firstProcessInstancePermissionCheck.setResourceIdQueryParam("E.PROC_INST_ID_");
+      CompositePermissionCheck processInstancePermissionCheck = new PermissionCheckBuilder()
+          .disjunctive()
+          .atomicCheck(PROCESS_INSTANCE, "E.PROC_INST_ID_", READ)
+          .atomicCheck(PROCESS_DEFINITION, "P.KEY_", READ_INSTANCE)
+          .build();
 
-      PermissionCheck secondProcessInstancePermissionCheck = newPermissionCheck();
-      secondProcessInstancePermissionCheck.setResource(PROCESS_DEFINITION);
-      secondProcessInstancePermissionCheck.setPermission(READ_INSTANCE);
-      secondProcessInstancePermissionCheck.setResourceIdQueryParam("P.KEY_");
-      secondProcessInstancePermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-      query.addProcessInstancePermissionCheck(firstProcessInstancePermissionCheck);
-      query.addProcessInstancePermissionCheck(secondProcessInstancePermissionCheck);
+      // the following is need in order to evaluate whether to perform authCheck or not
+      query.getAuthCheck().setPermissionChecks(processInstancePermissionCheck);
+      // the actual check
+      query.addProcessInstancePermissionCheck(processInstancePermissionCheck.getAllPermissionChecks());
 
       if (query.isFailedJobsToInclude()) {
-        PermissionCheck firstJobPermissionCheck = newPermissionCheck();
-        firstJobPermissionCheck.setResource(PROCESS_INSTANCE);
-        firstJobPermissionCheck.setPermission(READ);
-        firstJobPermissionCheck.setResourceIdQueryParam("JOB.PROCESS_INSTANCE_ID_");
+        CompositePermissionCheck jobPermissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "JOB.PROCESS_INSTANCE_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "JOB.PROCESS_DEF_KEY_", READ_INSTANCE)
+            .build();
 
-        PermissionCheck secondJobPermissionCheck = newPermissionCheck();
-        secondJobPermissionCheck.setResource(PROCESS_DEFINITION);
-        secondJobPermissionCheck.setPermission(READ_INSTANCE);
-        secondJobPermissionCheck.setResourceIdQueryParam("JOB.PROCESS_DEF_KEY_");
-        secondJobPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-        query.addJobPermissionCheck(firstJobPermissionCheck);
-        query.addJobPermissionCheck(secondJobPermissionCheck);
+        // the following is need in order to evaluate whether to perform authCheck or not
+        query.getAuthCheck().setPermissionChecks(jobPermissionCheck);
+        // the actual check
+        query.addJobPermissionCheck(jobPermissionCheck.getAllPermissionChecks());
       }
 
       if (query.isIncidentsToInclude()) {
-        PermissionCheck firstIncidentPermissionCheck = newPermissionCheck();
-        firstIncidentPermissionCheck.setResource(PROCESS_INSTANCE);
-        firstIncidentPermissionCheck.setPermission(READ);
-        firstIncidentPermissionCheck.setResourceIdQueryParam("I.PROC_INST_ID_");
+        CompositePermissionCheck incidentPermissionCheck = new PermissionCheckBuilder()
+            .disjunctive()
+            .atomicCheck(PROCESS_INSTANCE, "I.PROC_INST_ID_", READ)
+            .atomicCheck(PROCESS_DEFINITION, "PROCDEF.KEY_", READ_INSTANCE)
+            .build();
 
-        PermissionCheck secondIncidentPermissionCheck = newPermissionCheck();
-        secondIncidentPermissionCheck.setResource(PROCESS_DEFINITION);
-        secondIncidentPermissionCheck.setPermission(READ_INSTANCE);
-        secondIncidentPermissionCheck.setResourceIdQueryParam("PROCDEF.KEY_");
-        secondIncidentPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
-
-        query.addIncidentPermissionCheck(firstIncidentPermissionCheck);
-        query.addIncidentPermissionCheck(secondIncidentPermissionCheck);
+        // the following is need in order to evaluate whether to perform authCheck or not
+        query.getAuthCheck().setPermissionChecks(incidentPermissionCheck);
+        // the actual check
+        query.addIncidentPermissionCheck(incidentPermissionCheck.getAllPermissionChecks());
 
       }
     }
@@ -794,8 +843,12 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureExternalTaskQuery(ExternalTaskQueryImpl query) {
     configureQuery(query);
-    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
-    addPermissionCheck(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_INSTANCE);
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+        .disjunctive()
+        .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
+        .atomicCheck(PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_INSTANCE)
+        .build();
+    addPermissionCheck(query.getAuthCheck(), permissionCheck);
   }
 
   public void configureExternalTaskFetch(ListQueryParameterObject parameter) {
@@ -827,13 +880,11 @@ public class AuthorizationManager extends AbstractManager {
   }
 
   public void configureBatchQuery(BatchQueryImpl query) {
-    configureQuery(query);
-    addPermissionCheck(query, BATCH, "RES.ID_", READ);
+    configureQuery(query, BATCH, "RES.ID_", READ);
   }
 
   public void configureBatchStatisticsQuery(BatchStatisticsQueryImpl query) {
-    configureQuery(query);
-    addPermissionCheck(query, BATCH, "RES.ID_", READ);
+    configureQuery(query, BATCH, "RES.ID_", READ);
   }
 
   public List<String> filterAuthenticatedGroupIds(List<String> authenticatedGroupIds) {
@@ -860,6 +911,10 @@ public class AuthorizationManager extends AbstractManager {
         && currentAuthentication != null
         && currentAuthentication.getUserId() != null;
 
+  }
+
+  public boolean isEnsureSpecificVariablePermission() {
+    return Context.getProcessEngineConfiguration().isEnforceSpecificVariablePermission();
   }
 
 }

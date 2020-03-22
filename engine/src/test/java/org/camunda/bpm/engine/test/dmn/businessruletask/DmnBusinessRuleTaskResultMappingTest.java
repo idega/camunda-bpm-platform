@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,13 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.dmn.businessruletask;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.ParseException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -25,7 +31,7 @@ import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 /**
- * Tests the mapping of the decision result.
+ * Tests the mapping of the decision result.  
  *
  * @author Philipp Ossler
  */
@@ -168,8 +174,10 @@ public class DmnBusinessRuleTaskResultMappingTest extends PluggableProcessEngine
           .getId();
 
       fail("expect parse exception");
-    } catch (ProcessEngineException e) {
+    } catch (ParseException e) {
       assertTextPresent("No decision result mapper found for name 'invalid'", e.getMessage());
+      assertThat(e.getResorceReports().get(0).getErrors().size()).isEqualTo(1);
+      assertThat(e.getResorceReports().get(0).getErrors().get(0).getMainElementId()).isEqualTo("ruleTask");
     }
   }
 
@@ -192,7 +200,7 @@ public class DmnBusinessRuleTaskResultMappingTest extends PluggableProcessEngine
       fail("expect exception");
 
     } catch (ProcessEngineException e) {
-      assertTextPresent("variable with name 'decisionResult' can not be updated", e.getMessage());
+      assertTextPresent("transient variable with name decisionResult to non-transient", e.getMessage());
     }
   }
 

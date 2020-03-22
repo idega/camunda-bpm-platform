@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +19,7 @@ package org.camunda.bpm.engine.test.api.authorization.history;
 import static org.camunda.bpm.engine.authorization.Authorization.ANY;
 import static org.camunda.bpm.engine.authorization.Permissions.DELETE_HISTORY;
 import static org.camunda.bpm.engine.authorization.Permissions.READ_HISTORY;
+import static org.camunda.bpm.engine.authorization.Resources.HISTORIC_TASK;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.TASK;
 
@@ -22,9 +27,12 @@ import java.util.List;
 
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
+import org.camunda.bpm.engine.authorization.HistoricTaskPermissions;
 import org.camunda.bpm.engine.authorization.MissingAuthorization;
+import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.history.DurationReportResult;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceReportResult;
 import org.camunda.bpm.engine.impl.AbstractQuery;
@@ -58,6 +66,7 @@ public class HistoricTaskInstanceAuthorizationTest extends AuthorizationTest {
   @Override
   public void tearDown() {
     super.tearDown();
+    processEngineConfiguration.setEnableHistoricInstancePermissions(false);
     deleteDeployment(deploymentId);
   }
 
@@ -533,6 +542,51 @@ public class HistoricTaskInstanceAuthorizationTest extends AuthorizationTest {
 
     // then
     assertEquals(1, result.size());
+  }
+
+  public void testCheckAllHistoricTaskPermissions() {
+    // given
+    processEngineConfiguration.setEnableHistoricInstancePermissions(true);
+
+    // when
+    createGrantAuthorization(Resources.HISTORIC_TASK, ANY, userId, HistoricTaskPermissions.ALL);
+
+    // then
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.NONE, Resources.HISTORIC_TASK));
+
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.READ, Resources.HISTORIC_TASK));
+
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.ALL, Resources.HISTORIC_TASK));
+  }
+
+  public void testCheckReadHistoricTaskPermissions() {
+    // given
+    processEngineConfiguration.setEnableHistoricInstancePermissions(true);
+
+    // when
+    createGrantAuthorization(Resources.HISTORIC_TASK, ANY, userId, HistoricTaskPermissions.READ);
+
+    // then
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.NONE, Resources.HISTORIC_TASK));
+
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.READ, Resources.HISTORIC_TASK));
+  }
+
+  public void testCheckNoneHistoricTaskPermission() {
+    // given
+    processEngineConfiguration.setEnableHistoricInstancePermissions(true);
+
+    // when
+    createGrantAuthorization(Resources.HISTORIC_TASK, ANY, userId, HistoricTaskPermissions.NONE);
+
+    // then
+    assertTrue(authorizationService.isUserAuthorized(userId, null,
+        HistoricTaskPermissions.NONE, Resources.HISTORIC_TASK));
   }
 
   // helper ////////////////////////////////////////////////////////

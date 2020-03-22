@@ -1,11 +1,12 @@
-/**
- * Copyright (C) 2011, 2012 camunda services GmbH
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,20 +52,16 @@ public class ProcessEngineAdd extends AbstractAddStepHandler {
   }
 
   @Override
-  protected void performRuntime(OperationContext context, ModelNode operation, ModelNode model,
-          ServiceVerificationHandler verificationHandler, List<ServiceController<?>> newControllers)
-          throws OperationFailedException {
+  protected void performRuntime(final OperationContext context, final ModelNode operation, final ModelNode model) throws OperationFailedException {
 
     String engineName = PathAddress.pathAddress(operation.get(ADDRESS)).getLastElement().getValue();
 
     ManagedProcessEngineMetadata processEngineConfiguration = transformConfiguration(context, engineName, model);
 
-    ServiceController<ProcessEngine> controller = installService(context, verificationHandler, processEngineConfiguration);
-
-    newControllers.add(controller);
+    ServiceController<ProcessEngine> controller = installService(context, processEngineConfiguration);
   }
 
-  protected ServiceController<ProcessEngine> installService(OperationContext context, ServiceVerificationHandler verificationHandler,
+  protected ServiceController<ProcessEngine> installService(OperationContext context, 
       ManagedProcessEngineMetadata processEngineConfiguration) {
 
     MscManagedProcessEngineController service = new MscManagedProcessEngineController(processEngineConfiguration);
@@ -74,7 +71,6 @@ public class ProcessEngineAdd extends AbstractAddStepHandler {
 
     MscManagedProcessEngineController.initializeServiceBuilder(processEngineConfiguration, service, serviceBuilder, processEngineConfiguration.getJobExecutorAcquisitionName());
 
-    serviceBuilder.addListener(verificationHandler);
     return serviceBuilder.install();
   }
 

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,12 +16,13 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyString;
@@ -46,12 +51,11 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NullValueException;
-import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.management.UpdateJobSuspensionStateSelectBuilder;
 import org.camunda.bpm.engine.management.UpdateJobSuspensionStateTenantBuilder;
 import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
-import org.camunda.bpm.engine.rest.dto.runtime.JobQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.JobSuspensionStateDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
@@ -66,10 +70,10 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.InOrder;
-
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
 import org.mockito.Mockito;
+
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
 
@@ -85,6 +89,7 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
   protected static final String JOB_RESOURCE_EXECUTE_JOB_URL = SINGLE_JOB_RESOURCE_URL + "/execute";
   protected static final String JOB_RESOURCE_GET_STACKTRACE_URL = SINGLE_JOB_RESOURCE_URL + "/stacktrace";
   protected static final String JOB_RESOURCE_SET_DUEDATE_URL = SINGLE_JOB_RESOURCE_URL + "/duedate";
+  protected static final String JOB_RESOURCE_RECALC_DUEDATE_URL = JOB_RESOURCE_SET_DUEDATE_URL + "/recalculate";
   protected static final String SINGLE_JOB_SUSPENDED_URL = SINGLE_JOB_RESOURCE_URL + "/suspended";
   protected static final String JOB_SUSPENDED_URL = JOB_RESOURCE_URL + "/suspended";
 
@@ -106,10 +111,12 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
       .executionId(MockProvider.EXAMPLE_EXECUTION_ID)
       .retries(MockProvider.EXAMPLE_JOB_RETRIES)
       .exceptionMessage(MockProvider.EXAMPLE_JOB_NO_EXCEPTION_MESSAGE)
+      .failedActivityId(MockProvider.EXAMPLE_JOB_FAILED_ACTIVITY_ID)
       .dueDate(new Date())
       .priority(MockProvider.EXAMPLE_JOB_PRIORITY)
       .jobDefinitionId(MockProvider.EXAMPLE_JOB_DEFINITION_ID)
       .tenantId(MockProvider.EXAMPLE_TENANT_ID)
+      .createTime(DateTimeUtil.parseDate(MockProvider.EXAMPLE_JOB_CREATE_TIME))
       .build();
 
     when(mockQuery.singleResult()).thenReturn(mockedJob);
@@ -206,14 +213,18 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
 
   @Test
   public void testSimpleJobGet() {
-    given().pathParam("id", MockProvider.EXAMPLE_JOB_ID).then().expect().statusCode(Status.OK.getStatusCode())
+    given().pathParam("id", MockProvider.EXAMPLE_JOB_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
       .body("id", equalTo(MockProvider.EXAMPLE_JOB_ID))
       .body("processInstanceId", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
       .body("executionId", equalTo(MockProvider.EXAMPLE_EXECUTION_ID))
       .body("exceptionMessage", equalTo(MockProvider.EXAMPLE_JOB_NO_EXCEPTION_MESSAGE))
+      .body("failedActivityId", equalTo(MockProvider.EXAMPLE_JOB_FAILED_ACTIVITY_ID))
       .body("priority", equalTo(MockProvider.EXAMPLE_JOB_PRIORITY))
       .body("jobDefinitionId", equalTo(MockProvider.EXAMPLE_JOB_DEFINITION_ID))
       .body("tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_JOB_CREATE_TIME))
     .when().get(SINGLE_JOB_RESOURCE_URL);
 
     InOrder inOrder = inOrder(mockQuery);
@@ -336,8 +347,7 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
     .statusCode(Status.NO_CONTENT.getStatusCode())
     .when().put(JOB_RESOURCE_SET_DUEDATE_URL);
 
-    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, newDuedate);
-
+    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, newDuedate, false);
   }
 
   @Test
@@ -349,8 +359,34 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
     .statusCode(Status.NO_CONTENT.getStatusCode())
     .when().put(JOB_RESOURCE_SET_DUEDATE_URL);
 
-    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, null);
+    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, null, false);
+  }
 
+  @Test
+  public void testSetJobDuedateCascade() {
+    Date newDuedate = MockProvider.createMockDuedate();
+    Map<String, Object> duedateVariableJson = new HashMap<String, Object>();
+    duedateVariableJson.put("duedate", newDuedate);
+    duedateVariableJson.put("cascade", true);
+
+    given().pathParam("id", MockProvider.EXAMPLE_JOB_ID).contentType(ContentType.JSON).body(duedateVariableJson).then().expect()
+    .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().put(JOB_RESOURCE_SET_DUEDATE_URL);
+
+    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, newDuedate, true);
+  }
+
+  @Test
+  public void testSetJobDuedateNullCascade() {
+    Map<String, Object> duedateVariableJson = new HashMap<String, Object>();
+    duedateVariableJson.put("duedate", null);
+    duedateVariableJson.put("cascade", true);
+
+    given().pathParam("id", MockProvider.EXAMPLE_JOB_ID).contentType(ContentType.JSON).body(duedateVariableJson).then().expect()
+    .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().put(JOB_RESOURCE_SET_DUEDATE_URL);
+
+    verify(mockManagementService).setJobDuedate(MockProvider.EXAMPLE_JOB_ID, null, true);
   }
 
   @Test
@@ -359,7 +395,7 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
     String expectedMessage = "No job found with id '" + MockProvider.NON_EXISTING_JOB_ID + "'.";
 
     doThrow(new ProcessEngineException(expectedMessage)).when(mockManagementService).setJobDuedate(MockProvider.NON_EXISTING_JOB_ID,
-        newDuedate);
+        newDuedate, false);
 
     Map<String, Object> duedateVariableJson = new HashMap<String, Object>();
     duedateVariableJson.put("duedate", newDuedate);
@@ -371,13 +407,13 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
     .body("message", equalTo(expectedMessage))
     .when().put(JOB_RESOURCE_SET_DUEDATE_URL);
 
-    verify(mockManagementService).setJobDuedate(MockProvider.NON_EXISTING_JOB_ID, newDuedate);
+    verify(mockManagementService).setJobDuedate(MockProvider.NON_EXISTING_JOB_ID, newDuedate, false);
   }
 
   @Test
   public void testSetJobDuedateThrowsAuthorizationException() {
     String message = "expected exception";
-    doThrow(new AuthorizationException(message)).when(mockManagementService).setJobDuedate(anyString(), any(Date.class));
+    doThrow(new AuthorizationException(message)).when(mockManagementService).setJobDuedate(anyString(), any(Date.class), anyBoolean());
 
     Date newDuedate = MockProvider.createMockDuedate();
     Map<String, Object> duedateVariableJson = new HashMap<String, Object>();
@@ -1476,6 +1512,86 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
         .then().expect()
         .statusCode(Status.BAD_REQUEST.getStatusCode())
         .when().post(JOBS_SET_RETRIES_URL);
+  }
+
+  @Test
+  public void testRecalculateDuedateWithoutDateBase() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_JOB_ID)
+    .then()
+      .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().post(JOB_RESOURCE_RECALC_DUEDATE_URL);
+
+    verify(mockManagementService).recalculateJobDuedate(MockProvider.EXAMPLE_JOB_ID, true);
+  }
+
+  @Test
+  public void testRecalculateDuedateCreationDateBased() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_JOB_ID)
+      .queryParam("creationDateBased", true)
+    .then()
+      .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().post(JOB_RESOURCE_RECALC_DUEDATE_URL);
+
+    verify(mockManagementService).recalculateJobDuedate(MockProvider.EXAMPLE_JOB_ID, true);
+  }
+
+  @Test
+  public void testRecalculateDuedateCurrentDateBased() {
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_JOB_ID)
+      .queryParam("creationDateBased", false)
+    .then()
+      .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when().post(JOB_RESOURCE_RECALC_DUEDATE_URL);
+
+    verify(mockManagementService).recalculateJobDuedate(MockProvider.EXAMPLE_JOB_ID, false);
+  }
+
+  @Test
+  public void testRecalculateDuedateWithUnknownJobId() {
+    String jobId = MockProvider.NON_EXISTING_JOB_ID;
+
+    String expectedMessage = "No job found with id '" + jobId + "'.";
+
+    doThrow(new NotFoundException(expectedMessage))
+      .when(mockManagementService).recalculateJobDuedate(jobId, true);
+
+    given()
+      .pathParam("id", jobId)
+    .then().expect()
+      .statusCode(Status.NOT_FOUND.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", is(expectedMessage))
+    .when().post(JOB_RESOURCE_RECALC_DUEDATE_URL);
+
+    verify(mockManagementService).recalculateJobDuedate(jobId, true);
+    verifyNoMoreInteractions(mockManagementService);
+  }
+
+  @Test
+  public void testRecalculateDuedateUnauthorized() {
+    String jobId = MockProvider.EXAMPLE_JOB_ID;
+
+    String expectedMessage = "Missing permissions";
+
+    doThrow(new AuthorizationException(expectedMessage))
+      .when(mockManagementService).recalculateJobDuedate(jobId, true);
+
+    given()
+      .pathParam("id", jobId)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", is(AuthorizationException.class.getSimpleName()))
+      .body("message", is(expectedMessage))
+    .when().post(JOB_RESOURCE_RECALC_DUEDATE_URL);
+
+    verify(mockManagementService).recalculateJobDuedate(jobId, true);
+    verifyNoMoreInteractions(mockManagementService);
   }
 
   protected void verifyBatchJson(String batchJson) {

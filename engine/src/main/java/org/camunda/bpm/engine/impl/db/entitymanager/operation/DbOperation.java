@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,6 +32,10 @@ public abstract class DbOperation implements Recyclable {
    */
   protected DbOperationType operationType;
 
+  protected int rowsAffected;
+  protected Exception failure;
+  protected State state;
+
   /**
    * The type of the DbEntity this operation is executed on.
    */
@@ -40,8 +48,6 @@ public abstract class DbOperation implements Recyclable {
   }
 
   // getters / setters //////////////////////////////////////////
-
-  public abstract boolean isFailed();
 
   public Class<? extends DbEntity> getEntityType() {
     return entityType;
@@ -57,6 +63,52 @@ public abstract class DbOperation implements Recyclable {
 
   public void setOperationType(DbOperationType operationType) {
     this.operationType = operationType;
+  }
+
+  public int getRowsAffected() {
+    return rowsAffected;
+  }
+
+  public void setRowsAffected(int rowsAffected) {
+    this.rowsAffected = rowsAffected;
+  }
+
+  public boolean isFailed() {
+    return state == State.FAILED_CONCURRENT_MODIFICATION || state == State.FAILED_ERROR;
+  }
+
+  public State getState() {
+    return state;
+  }
+
+  public void setState(State state) {
+    this.state = state;
+  }
+
+  public Exception getFailure() {
+    return failure;
+  }
+
+  public void setFailure(Exception failure) {
+    this.failure = failure;
+  }
+
+  public enum State
+  {
+    NOT_APPLIED,
+    APPLIED,
+
+    /**
+     * Indicates that the operation was not performed for any reason except
+     * concurrent modifications.
+     */
+    FAILED_ERROR,
+
+    /**
+     * Indicates that the operation was not performed and that the reason
+     * was a concurrent modification to the data to be updated.
+     */
+    FAILED_CONCURRENT_MODIFICATION
   }
 
 }

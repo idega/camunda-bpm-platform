@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest.sub.runtime.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,6 +23,7 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.filter.Filter;
+import org.camunda.bpm.engine.impl.VariableInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
 import org.camunda.bpm.engine.query.Query;
 import org.camunda.bpm.engine.rest.FilterRestService;
@@ -30,7 +34,12 @@ import org.camunda.bpm.engine.rest.dto.runtime.FilterDto;
 import org.camunda.bpm.engine.rest.dto.task.TaskDto;
 import org.camunda.bpm.engine.rest.dto.task.TaskQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
-import org.camunda.bpm.engine.rest.hal.*;
+import org.camunda.bpm.engine.rest.hal.EmptyHalCollection;
+import org.camunda.bpm.engine.rest.hal.EmptyHalResource;
+import org.camunda.bpm.engine.rest.hal.Hal;
+import org.camunda.bpm.engine.rest.hal.HalCollectionResource;
+import org.camunda.bpm.engine.rest.hal.HalResource;
+import org.camunda.bpm.engine.rest.hal.HalVariableValue;
 import org.camunda.bpm.engine.rest.hal.task.HalTask;
 import org.camunda.bpm.engine.rest.hal.task.HalTaskList;
 import org.camunda.bpm.engine.rest.impl.AbstractAuthorizedRestResource;
@@ -39,14 +48,28 @@ import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
 
 import javax.ws.rs.HttpMethod;
-import javax.ws.rs.core.*;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Request;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriInfo;
+import javax.ws.rs.core.Variant;
 import java.io.IOException;
 import java.net.URI;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
-import static org.camunda.bpm.engine.authorization.Permissions.*;
+import static org.camunda.bpm.engine.authorization.Permissions.DELETE;
+import static org.camunda.bpm.engine.authorization.Permissions.READ;
+import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Resources.FILTER;
 
 /**
@@ -328,11 +351,7 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
       String resourceType = getDbFilter().getResourceType();
       AbstractQueryDto<?> queryDto = getQueryDtoForQuery(queryString, resourceType);
       queryDto.setObjectMapper(getObjectMapper());
-      if (queryDto != null) {
-        return queryDto.toQuery(processEngine);
-      } else {
-        throw new InvalidRequestException(Status.BAD_REQUEST, "Unable to convert query for resource type '" + resourceType + "'.");
-      }
+      return queryDto.toQuery(processEngine);
     }
   }
 
@@ -346,7 +365,7 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
   }
 
   protected List<Object> convertToDtoList(List<?> entities) {
-    List<Object> dtoList = new ArrayList<Object>();
+    List<Object> dtoList = new ArrayList<>();
     for (Object entity : entities) {
       dtoList.add(convertToDto(entity));
     }
@@ -412,13 +431,13 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
 
   protected List<HalResource<?>> getVariableValuesForTask(HalTask halTask, Map<String, List<VariableInstance>> variableInstances) {
     // converted variables values
-    List<HalResource<?>> variableValues = new ArrayList<HalResource<?>>();
+    List<HalResource<?>> variableValues = new ArrayList<>();
 
     // variable scope ids to check, ordered by visibility
     LinkedHashSet<String> variableScopeIds = getVariableScopeIds(halTask);
 
     // names of already converted variables
-    Set<String> knownVariableNames = new HashSet<String>();
+    Set<String> knownVariableNames = new HashSet<>();
 
     for (String variableScopeId : variableScopeIds) {
       if (variableInstances.containsKey(variableScopeId)) {
@@ -470,7 +489,7 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
 
   private List<String> collectVariableNames(List<Map<String, Object>> variables) {
     if (variables != null && !variables.isEmpty()) {
-      List<String> variableNames = new ArrayList<String>();
+      List<String> variableNames = new ArrayList<>();
       for (Map<String, Object> variable : variables) {
         variableNames.add((String) variable.get(PROPERTIES_VARIABLES_NAME_KEY));
       }
@@ -484,7 +503,7 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
   protected LinkedHashSet<String> getVariableScopeIds(HalTask... halTasks) {
     // collect scope ids
     // the ordering is important because it specifies which variables are visible from a single task
-    LinkedHashSet<String> variableScopeIds = new LinkedHashSet<String>();
+    LinkedHashSet<String> variableScopeIds = new LinkedHashSet<>();
     if (halTasks != null && halTasks.length > 0) {
       for (HalTask halTask : halTasks) {
         variableScopeIds.add(halTask.getId());
@@ -503,7 +522,7 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
 
   protected Map<String, List<VariableInstance>> getSortedVariableInstances(Collection<String> variableNames, Collection<String> variableScopeIds) {
     List<VariableInstance> variableInstances = queryVariablesInstancesByVariableScopeIds(variableNames, variableScopeIds);
-    Map<String, List<VariableInstance>> sortedVariableInstances = new HashMap<String, List<VariableInstance>>();
+    Map<String, List<VariableInstance>> sortedVariableInstances = new HashMap<>();
     for (VariableInstance variableInstance : variableInstances) {
       String variableScopeId = ((VariableInstanceEntity) variableInstance).getVariableScopeId();
       if (!sortedVariableInstances.containsKey(variableScopeId)) {
@@ -515,13 +534,20 @@ public class FilterResourceImpl extends AbstractAuthorizedRestResource implement
   }
 
   protected List<VariableInstance> queryVariablesInstancesByVariableScopeIds(Collection<String> variableNames, Collection<String> variableScopeIds) {
-    return getProcessEngine().getRuntimeService()
-      .createVariableInstanceQuery()
-      .disableBinaryFetching()
-      .disableCustomObjectDeserialization()
-      .variableNameIn(variableNames.toArray(new String[variableNames.size()]))
-      .variableScopeIdIn(variableScopeIds.toArray(new String[variableScopeIds.size()]))
-      .list();
+
+    VariableInstanceQueryImpl query = (VariableInstanceQueryImpl) getProcessEngine().getRuntimeService()
+        .createVariableInstanceQuery()
+        .disableBinaryFetching()
+        .disableCustomObjectDeserialization()
+        .variableNameIn(variableNames.toArray(new String[0]))
+        .variableScopeIdIn(variableScopeIds.toArray(new String[0]));
+
+    // the number of results is capped at:
+    // #tasks * #variableNames * 5 (we have five variable scopes per task)
+    // this value may exceed the configured query pagination limit, so we make an unbounded query.
+    // As #tasks is bounded by the pagination limit, it will never load an unbounded number of variables.
+    return query.unlimitedList();
+
   }
 
   protected boolean isEntityOfClass(Object entity, Class<?> entityClass) {

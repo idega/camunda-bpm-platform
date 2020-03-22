@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +16,7 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -37,8 +41,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.InOrder;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  * @author Roman Smirnov
@@ -48,7 +52,7 @@ public class HistoricJobLogRestServiceInteractionTest extends AbstractRestServic
 
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
-  
+
   protected static final String HISTORIC_JOB_LOG_RESOURCE_URL = TEST_RESOURCE_ROOT_PATH + "/history/job-log";
   protected static final String SINGLE_HISTORIC_JOB_LOG_RESOURCE_URL = HISTORIC_JOB_LOG_RESOURCE_URL + "/{id}";
   protected static final String HISTORIC_JOB_LOG_RESOURCE_GET_STACKTRACE_URL = SINGLE_HISTORIC_JOB_LOG_RESOURCE_URL + "/stacktrace";
@@ -83,6 +87,7 @@ public class HistoricJobLogRestServiceInteractionTest extends AbstractRestServic
         .statusCode(Status.OK.getStatusCode())
         .body("id", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ID))
         .body("timestamp", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_TIMESTAMP))
+        .body("removalTime", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_REMOVAL_TIME))
         .body("jobId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_ID))
         .body("jobDueDate", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DUE_DATE))
         .body("jobRetries", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_RETRIES))
@@ -92,12 +97,15 @@ public class HistoricJobLogRestServiceInteractionTest extends AbstractRestServic
         .body("jobDefinitionType", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DEF_TYPE))
         .body("jobDefinitionConfiguration", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DEF_CONFIG))
         .body("activityId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ACTIVITY_ID))
+        .body("failedActivityId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_FAILED_ACTIVITY_ID))
         .body("executionId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_EXECUTION_ID))
         .body("processInstanceId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_INST_ID))
         .body("processDefinitionId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_ID))
         .body("processDefinitionKey", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_KEY))
         .body("deploymentId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_DEPLOYMENT_ID))
         .body("tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
+        .body("hostname", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_HOSTNAME))
+        .body("rootProcessInstanceId", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ROOT_PROC_INST_ID))
         .body("creationLog", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_CREATION_LOG))
         .body("failureLog", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_FAILURE_LOG))
         .body("successLog", equalTo(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_SUCCESS_LOG))

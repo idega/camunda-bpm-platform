@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +16,7 @@
  */
 package org.camunda.bpm.engine.impl;
 
+import java.util.Arrays;
 import java.util.List;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
@@ -20,12 +25,12 @@ import java.util.Map;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.cmd.CorrelateAllMessageCmd;
 import org.camunda.bpm.engine.impl.cmd.CorrelateMessageCmd;
-import org.camunda.bpm.engine.impl.cmd.CorrelateStartMessageCmd;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.runtime.MessageCorrelationBuilder;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResult;
+import org.camunda.bpm.engine.runtime.MessageCorrelationResultWithVariables;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.impl.VariableMapImpl;
@@ -56,6 +61,8 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
 
   protected String tenantId = null;
   protected boolean isTenantIdSet = false;
+
+  protected boolean startMessagesOnly = false;
 
   public MessageCorrelationBuilderImpl(CommandExecutor commandExecutor, String messageName) {
     this(messageName);
@@ -195,16 +202,38 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
   }
 
   @Override
+  public MessageCorrelationBuilder startMessageOnly() {
+    startMessagesOnly = true;
+    return this;
+  }
+
+  @Override
   public void correlate() {
     correlateWithResult();
   }
 
   @Override
   public MessageCorrelationResult correlateWithResult() {
-    ensureProcessDefinitionIdNotSet();
-    ensureProcessInstanceAndTenantIdNotSet();
+    if (startMessagesOnly) {
+      ensureCorrelationVariablesNotSet();
+      ensureProcessDefinitionAndTenantIdNotSet();
+    } else {
+      ensureProcessDefinitionIdNotSet();
+      ensureProcessInstanceAndTenantIdNotSet();
+    }
+    return execute(new CorrelateMessageCmd(this, false, false, startMessagesOnly));
+  }
 
-    return execute(new CorrelateMessageCmd(this));
+  @Override
+  public MessageCorrelationResultWithVariables correlateWithResultAndVariables(boolean deserializeValues) {
+    if (startMessagesOnly) {
+      ensureCorrelationVariablesNotSet();
+      ensureProcessDefinitionAndTenantIdNotSet();
+    } else {
+      ensureProcessDefinitionIdNotSet();
+      ensureProcessInstanceAndTenantIdNotSet();
+    }
+    return execute(new CorrelateMessageCmd(this, true, deserializeValues, startMessagesOnly));
   }
 
   @Override
@@ -221,17 +250,38 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
 
   @Override
   public List<MessageCorrelationResult> correlateAllWithResult() {
-    ensureProcessDefinitionIdNotSet();
-    ensureProcessInstanceAndTenantIdNotSet();
+    if (startMessagesOnly) {
+      ensureCorrelationVariablesNotSet();
+      ensureProcessDefinitionAndTenantIdNotSet();
+      // only one result can be expected
+      MessageCorrelationResult result = execute(new CorrelateMessageCmd(this, false, false, startMessagesOnly));
+      return Arrays.asList(result);
+    } else {
+      ensureProcessDefinitionIdNotSet();
+      ensureProcessInstanceAndTenantIdNotSet();
+      return (List) execute(new CorrelateAllMessageCmd(this, false, false));
+    }
+  }
 
-    return execute(new CorrelateAllMessageCmd(this));
+  @Override
+  public List<MessageCorrelationResultWithVariables> correlateAllWithResultAndVariables(boolean deserializeValues) {
+    if (startMessagesOnly) {
+      ensureCorrelationVariablesNotSet();
+      ensureProcessDefinitionAndTenantIdNotSet();
+      // only one result can be expected
+      MessageCorrelationResultWithVariables result = execute(new CorrelateMessageCmd(this, true, deserializeValues, startMessagesOnly));
+      return Arrays.asList(result);
+    } else {
+      ensureProcessDefinitionIdNotSet();
+      ensureProcessInstanceAndTenantIdNotSet();
+      return (List) execute(new CorrelateAllMessageCmd(this, true, deserializeValues));
+    }
   }
 
   public ProcessInstance correlateStartMessage() {
-    ensureCorrelationVariablesNotSet();
-    ensureProcessDefinitionAndTenantIdNotSet();
-
-    return execute(new CorrelateStartMessageCmd(this));
+    startMessageOnly();
+    MessageCorrelationResult result = correlateWithResult();
+    return result.getProcessInstance();
   }
 
   protected void ensureProcessDefinitionIdNotSet() {

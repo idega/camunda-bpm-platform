@@ -1,3 +1,19 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.container.impl.jboss.util;
 
 import org.jboss.as.controller.AbstractAttributeDefinitionBuilder;
@@ -15,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.ResourceBundle;
+import java.util.logging.Logger;
 
 /**
  * Fix value type validation for ObjectTypeAttributeDefinition containing a map as value type.
@@ -24,13 +41,15 @@ import java.util.ResourceBundle;
  */
 public class FixedObjectTypeAttributeDefinition extends ObjectTypeAttributeDefinition {
 
+  private static final Logger LOG = Logger.getLogger(FixedObjectTypeAttributeDefinition.class.getName());
+
   public FixedObjectTypeAttributeDefinition(AbstractAttributeDefinitionBuilder<?, ? extends ObjectTypeAttributeDefinition> builder, String suffix, AttributeDefinition[] valueTypes) {
     super(builder, suffix, valueTypes);
   }
 
   @Override
   protected void addValueTypeDescription(ModelNode node, String prefix, ResourceBundle bundle, ResourceDescriptionResolver resolver, Locale locale) {
-    super.addValueTypeDescription(node, prefix, bundle, resolver, locale);
+    super.addValueTypeDescription(node, prefix, bundle, false, resolver, locale);
 
     try {
       Field valueTypesField = ObjectTypeAttributeDefinition.class.getDeclaredField("valueTypes");
@@ -53,9 +72,9 @@ public class FixedObjectTypeAttributeDefinition extends ObjectTypeAttributeDefin
         }
       }
     } catch (NoSuchFieldException e) {
-      e.printStackTrace();
+      LOG.warning("Could not access 'valueTypes', the attribute is added nonetheless");
     } catch (IllegalAccessException e) {
-      e.printStackTrace();
+      LOG.warning("Could not access 'valueTypes', the attribute is added nonetheless");
     }
   }
 

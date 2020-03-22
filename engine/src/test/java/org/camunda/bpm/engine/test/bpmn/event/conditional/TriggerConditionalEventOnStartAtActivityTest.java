@@ -1,22 +1,23 @@
 /*
- * Copyright 2016 camunda services GmbH.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.bpmn.event.conditional;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Ignore;
@@ -516,5 +517,76 @@ public class TriggerConditionalEventOnStartAtActivityTest extends AbstractCondit
     assertTaskNames(tasksAfterVariableIsSet, TASK_AFTER_CONDITION_ID, TASK_AFTER_CONDITION_ID + 1);
   }
 
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testSubProcessNonInterruptingTriggerGlobalEventSubProcess() {
+    // given
+    BpmnModelInstance modelInstance =  Bpmn.createExecutableProcess(CONDITIONAL_EVENT_PROCESS_KEY)
+      .startEvent("start")
+      .userTask("beforeSubProcess")
+      .subProcess(SUB_PROCESS_ID)
+      .embeddedSubProcess()
+        .startEvent()
+        .userTask(TASK_BEFORE_CONDITION_ID)
+        .name(TASK_BEFORE_CONDITION)
+        .endEvent()
+      .subProcessDone()
+      .endEvent()
+      .done();
 
+    modelInstance = addConditionalEventSubProcess(modelInstance, CONDITIONAL_EVENT_PROCESS_KEY, TASK_AFTER_CONDITION_ID, false);
+
+    engine.manageDeployment(repositoryService.createDeployment().addModelInstance(CONDITIONAL_MODEL, modelInstance).deploy());
+
+    // when
+    runtimeService.createProcessInstanceByKey(CONDITIONAL_EVENT_PROCESS_KEY)
+    .startBeforeActivity(TASK_BEFORE_CONDITION_ID)
+    .setVariable(VARIABLE_NAME, "1")
+    .executeWithVariablesInReturn();
+
+    // then
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().count());
+    assertEquals("variable", historyService.createHistoricVariableInstanceQuery().singleResult().getName());
+
+    tasksAfterVariableIsSet = taskService.createTaskQuery().list();
+    assertEquals(2, tasksAfterVariableIsSet.size());
+    assertEquals(1, taskService.createTaskQuery().taskDefinitionKey(TASK_BEFORE_CONDITION_ID).count());
+    assertEquals(1, taskService.createTaskQuery().taskDefinitionKey(TASK_AFTER_CONDITION_ID).count());
+  }
+
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testSubProcessInterruptingTriggerGlobalEventSubProcess() {
+    // given
+    BpmnModelInstance modelInstance =  Bpmn.createExecutableProcess(CONDITIONAL_EVENT_PROCESS_KEY)
+      .startEvent("start")
+      .userTask("beforeSubProcess")
+      .subProcess(SUB_PROCESS_ID)
+      .embeddedSubProcess()
+        .startEvent()
+        .userTask(TASK_BEFORE_CONDITION_ID)
+        .name(TASK_BEFORE_CONDITION)
+        .endEvent()
+      .subProcessDone()
+      .endEvent()
+      .done();
+
+    modelInstance = addConditionalEventSubProcess(modelInstance, CONDITIONAL_EVENT_PROCESS_KEY, TASK_AFTER_CONDITION_ID, true);
+
+    engine.manageDeployment(repositoryService.createDeployment().addModelInstance(CONDITIONAL_MODEL, modelInstance).deploy());
+
+    // when
+    runtimeService.createProcessInstanceByKey(CONDITIONAL_EVENT_PROCESS_KEY)
+    .startBeforeActivity(TASK_BEFORE_CONDITION_ID)
+    .setVariable(VARIABLE_NAME, "1")
+    .executeWithVariablesInReturn();
+
+    // then
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().count());
+    assertEquals("variable", historyService.createHistoricVariableInstanceQuery().singleResult().getName());
+
+    tasksAfterVariableIsSet = taskService.createTaskQuery().list();
+    assertEquals(1, tasksAfterVariableIsSet.size());
+    assertEquals(TASK_AFTER_CONDITION_ID, tasksAfterVariableIsSet.get(0).getTaskDefinitionKey());
+  }
 }

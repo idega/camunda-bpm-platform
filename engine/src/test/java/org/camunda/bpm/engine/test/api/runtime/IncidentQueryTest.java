@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +16,7 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -21,7 +26,9 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -41,6 +48,7 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.RuleChain;
 
 /**
@@ -63,6 +71,9 @@ public class IncidentQueryTest {
   @Rule
   public RuleChain chain = RuleChain.outerRule(engineRule).around(testHelper);
 
+  @Rule
+  public ExpectedException exception = ExpectedException.none();
+
   private List<String> processInstanceIds;
 
   protected RuntimeService runtimeService;
@@ -81,10 +92,12 @@ public class IncidentQueryTest {
   public void startProcessInstances() throws Exception {
     testHelper.deploy(FAILING_SERVICE_TASK_MODEL);
 
-    processInstanceIds = new ArrayList<String>();
+    processInstanceIds = new ArrayList<>();
     for (int i = 0; i < 4; i++) {
+      Map<String, Object> variables = Collections.<String, Object>singletonMap("message", "exception" + i);
+
       processInstanceIds.add(engineRule.getRuntimeService()
-        .startProcessInstanceByKey(PROCESS_DEFINITION_KEY, i + "").getId()
+        .startProcessInstanceByKey(PROCESS_DEFINITION_KEY, i + "", variables).getId()
       );
     }
 
@@ -126,12 +139,12 @@ public class IncidentQueryTest {
 
   @Test
   public void testQueryByIncidentMessage() {
-    IncidentQuery query = runtimeService.createIncidentQuery().incidentMessage("Expected_exception.");
-    assertEquals(4, query.count());
+    IncidentQuery query = runtimeService.createIncidentQuery().incidentMessage("exception0");
+    assertEquals(1, query.count());
 
     List<Incident> incidents = query.list();
     assertFalse(incidents.isEmpty());
-    assertEquals(4, incidents.size());
+    assertEquals(1, incidents.size());
   }
 
   @Test
@@ -147,6 +160,7 @@ public class IncidentQueryTest {
     assertNull(incident);
   }
 
+  @Test
   public void testQueryByProcessDefinitionId() {
     String processDefinitionId = engineRule.getRepositoryService().createProcessDefinitionQuery().singleResult().getId();
 
@@ -171,6 +185,58 @@ public class IncidentQueryTest {
     assertNull(incident);
   }
 
+  @Test
+  public void testQueryByProcessDefinitionKeys() {
+    // given
+    // 4 failed instances of "process"
+
+    // one incident of each of the following processes
+    testHelper.deploy(Bpmn.createExecutableProcess("proc1").startEvent().userTask().endEvent().done());
+    ProcessInstance instance5 = runtimeService.startProcessInstanceByKey("proc1");
+    Incident incident5 = runtimeService.createIncident("foo", instance5.getId(), "a");
+
+    testHelper.deploy(Bpmn.createExecutableProcess("proc2").startEvent().userTask().endEvent().done());
+    ProcessInstance instance6 = runtimeService.startProcessInstanceByKey("proc2");
+    Incident incident6 = runtimeService.createIncident("foo", instance6.getId(), "b");
+
+    // when
+    List<Incident> incidents = runtimeService.createIncidentQuery()
+        .processDefinitionKeyIn("proc1", "proc2")
+        .orderByConfiguration()
+        .asc()
+        .list();
+
+    // then
+    assertThat(incidents).hasSize(2);
+    assertThat(incidents.get(0).getId()).isEqualTo(incident5.getId());
+    assertThat(incidents.get(1).getId()).isEqualTo(incident6.getId());
+  }
+
+  @Test
+  public void testQueryByInvalidProcessDefinitionKeys() {
+    // given
+    IncidentQuery incidentQuery = runtimeService.createIncidentQuery();
+
+    // then
+    exception.expect(ProcessEngineException.class);
+
+    // when
+    incidentQuery.processDefinitionKeyIn((String[]) null);
+  }
+
+  @Test
+  public void testQueryByOneInvalidProcessDefinitionKey() {
+    // given
+    IncidentQuery incidentQuery = runtimeService.createIncidentQuery();
+
+    // then
+    exception.expect(ProcessEngineException.class);
+
+    // when
+    incidentQuery.processDefinitionKeyIn((String) null);
+  }
+
+  @Test
   public void testQueryByProcessInstanceId() {
     IncidentQuery query = runtimeService.createIncidentQuery().processInstanceId(processInstanceIds.get(0));
 
@@ -224,6 +290,7 @@ public class IncidentQueryTest {
     assertNull(incident);
   }
 
+  @Test
   public void testQueryByExecutionId() {
     Execution execution = runtimeService.createExecutionQuery().processInstanceId(processInstanceIds.get(0)).singleResult();
     assertNotNull(execution);
@@ -250,8 +317,9 @@ public class IncidentQueryTest {
     assertNull(incident);
   }
 
+  @Test
   public void testQueryByActivityId() {
-    IncidentQuery query = runtimeService.createIncidentQuery().activityId("theServiceTask");
+    IncidentQuery query = runtimeService.createIncidentQuery().activityId("task");
     assertEquals(4, query.count());
 
     List<Incident> incidents = query.list();
@@ -262,6 +330,29 @@ public class IncidentQueryTest {
   @Test
   public void testQueryByInvalidActivityId() {
     IncidentQuery query = runtimeService.createIncidentQuery().activityId("invalid");
+
+    assertEquals(0, query.count());
+
+    List<Incident> incidents = query.list();
+    assertTrue(incidents.isEmpty());
+
+    Incident incident = query.singleResult();
+    assertNull(incident);
+  }
+
+  @Test
+  public void testQueryByFailedActivityId() {
+    IncidentQuery query = runtimeService.createIncidentQuery().failedActivityId("task");
+    assertEquals(4, query.count());
+
+    List<Incident> incidents = query.list();
+    assertFalse(incidents.isEmpty());
+    assertEquals(4, incidents.size());
+  }
+
+  @Test
+  public void testQueryByInvalidFailedActivityId() {
+    IncidentQuery query = runtimeService.createIncidentQuery().failedActivityId("invalid");
 
     assertEquals(0, query.count());
 
@@ -491,5 +582,21 @@ public class IncidentQueryTest {
     assertEquals(4, runtimeService.createIncidentQuery().orderByRootCauseIncidentId().desc().list().size());
     assertEquals(4, runtimeService.createIncidentQuery().orderByConfiguration().desc().list().size());
 
+  }
+
+  @Test
+  public void testQuerySortingByIncidentMessage()
+  {
+    // given
+
+    // when
+    List<Incident> ascending = runtimeService.createIncidentQuery().orderByIncidentMessage().asc().list();
+    List<Incident> descending = runtimeService.createIncidentQuery().orderByIncidentMessage().desc().list();
+
+    // then
+    assertThat(ascending).extracting("incidentMessage")
+      .containsExactly("exception0", "exception1", "exception2", "exception3");
+    assertThat(descending).extracting("incidentMessage")
+      .containsExactly("exception3", "exception2", "exception1", "exception0");
   }
 }

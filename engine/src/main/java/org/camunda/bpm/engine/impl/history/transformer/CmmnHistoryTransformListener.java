@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.history.transformer;
 
 import java.util.List;
@@ -21,6 +24,7 @@ import org.camunda.bpm.engine.impl.cmmn.model.CmmnActivity;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnSentryDeclaration;
 import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformListener;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
 import org.camunda.bpm.engine.impl.history.producer.CmmnHistoryEventProducer;
@@ -58,19 +62,18 @@ public class CmmnHistoryTransformListener implements CmmnTransformListener {
   // The history level set in the process engine configuration
   protected HistoryLevel historyLevel;
 
-  public CmmnHistoryTransformListener(HistoryLevel historyLevel, CmmnHistoryEventProducer historyEventProducer) {
-    this.historyLevel = historyLevel;
-    initCaseExecutionListeners(historyEventProducer, historyLevel);
+  public CmmnHistoryTransformListener(CmmnHistoryEventProducer historyEventProducer) {
+    initCaseExecutionListeners(historyEventProducer);
   }
 
-  protected void initCaseExecutionListeners(CmmnHistoryEventProducer historyEventProducer, HistoryLevel historyLevel) {
-    CASE_INSTANCE_CREATE_LISTENER = new CaseInstanceCreateListener(historyEventProducer, historyLevel);
-    CASE_INSTANCE_UPDATE_LISTENER = new CaseInstanceUpdateListener(historyEventProducer, historyLevel);
-    CASE_INSTANCE_CLOSE_LISTENER = new CaseInstanceCloseListener(historyEventProducer, historyLevel);
+  protected void initCaseExecutionListeners(CmmnHistoryEventProducer historyEventProducer) {
+    CASE_INSTANCE_CREATE_LISTENER = new CaseInstanceCreateListener(historyEventProducer);
+    CASE_INSTANCE_UPDATE_LISTENER = new CaseInstanceUpdateListener(historyEventProducer);
+    CASE_INSTANCE_CLOSE_LISTENER = new CaseInstanceCloseListener(historyEventProducer);
 
-    CASE_ACTIVITY_INSTANCE_CREATE_LISTENER = new CaseActivityInstanceCreateListener(historyEventProducer, historyLevel);
-    CASE_ACTIVITY_INSTANCE_UPDATE_LISTENER = new CaseActivityInstanceUpdateListener(historyEventProducer, historyLevel);
-    CASE_ACTIVITY_INSTANCE_END_LISTENER = new CaseActivityInstanceEndListener(historyEventProducer, historyLevel);
+    CASE_ACTIVITY_INSTANCE_CREATE_LISTENER = new CaseActivityInstanceCreateListener(historyEventProducer);
+    CASE_ACTIVITY_INSTANCE_UPDATE_LISTENER = new CaseActivityInstanceUpdateListener(historyEventProducer);
+    CASE_ACTIVITY_INSTANCE_END_LISTENER = new CaseActivityInstanceEndListener(historyEventProducer);
   }
 
   public void transformRootElement(Definitions definitions, List<? extends CmmnCaseDefinition> caseDefinitions) {
@@ -123,6 +126,7 @@ public class CmmnHistoryTransformListener implements CmmnTransformListener {
   }
 
   protected void addCasePlanModelHandlers(CmmnActivity caseActivity) {
+    ensureHistoryLevelInitialized();
     if (caseActivity != null) {
       if (historyLevel.isHistoryEventProduced(HistoryEventTypes.CASE_INSTANCE_CREATE, null)) {
         for (String event : ItemHandler.CASE_PLAN_MODEL_CREATE_EVENTS) {
@@ -143,6 +147,7 @@ public class CmmnHistoryTransformListener implements CmmnTransformListener {
   }
 
   protected void addTaskOrStageHandlers(CmmnActivity caseActivity) {
+    ensureHistoryLevelInitialized();
     if (caseActivity != null) {
       if (historyLevel.isHistoryEventProduced(HistoryEventTypes.CASE_ACTIVITY_INSTANCE_CREATE, null)) {
         for (String event : ItemHandler.TASK_OR_STAGE_CREATE_EVENTS) {
@@ -163,6 +168,7 @@ public class CmmnHistoryTransformListener implements CmmnTransformListener {
   }
 
   protected void addEventListenerOrMilestoneHandlers(CmmnActivity caseActivity) {
+    ensureHistoryLevelInitialized();
     if (caseActivity != null) {
       if (historyLevel.isHistoryEventProduced(HistoryEventTypes.CASE_ACTIVITY_INSTANCE_CREATE, null)) {
         for (String event : ItemHandler.EVENT_LISTENER_OR_MILESTONE_CREATE_EVENTS) {
@@ -179,6 +185,12 @@ public class CmmnHistoryTransformListener implements CmmnTransformListener {
           caseActivity.addBuiltInListener(event, CASE_ACTIVITY_INSTANCE_END_LISTENER);
         }
       }
+    }
+  }
+  
+  protected void ensureHistoryLevelInitialized() {
+    if (historyLevel == null) {
+      historyLevel = Context.getProcessEngineConfiguration().getHistoryLevel();
     }
   }
 

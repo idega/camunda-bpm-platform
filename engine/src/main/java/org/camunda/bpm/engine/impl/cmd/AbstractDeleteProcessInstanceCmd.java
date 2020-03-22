@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,6 +52,7 @@ public abstract class AbstractDeleteProcessInstanceCmd {
   protected String deleteReason;
   protected boolean skipCustomListeners;
   protected boolean skipSubprocesses;
+  protected boolean failIfNotExists = true;
 
   protected void checkDeleteProcessInstance(ExecutionEntity execution, CommandContext commandContext) {
     for (CommandChecker checker : commandContext.getProcessEngineConfiguration().getCommandCheckers()) {
@@ -60,7 +65,7 @@ public abstract class AbstractDeleteProcessInstanceCmd {
       String processInstanceId,
       final String deleteReason,
       final boolean skipCustomListeners,
-      boolean externallyTerminated,
+      final boolean externallyTerminated,
       final boolean skipIoMappings,
       boolean skipSubprocesses) {
     ensureNotNull(BadUserRequestException.class, "processInstanceId is null", "processInstanceId", processInstanceId);
@@ -68,6 +73,10 @@ public abstract class AbstractDeleteProcessInstanceCmd {
     // fetch process instance
     ExecutionManager executionManager = commandContext.getExecutionManager();
     final ExecutionEntity execution = executionManager.findExecutionById(processInstanceId);
+
+    if(!failIfNotExists && execution == null) {
+      return;
+    }
 
     ensureNotNull(BadUserRequestException.class, "No process instance found for id '" + processInstanceId + "'", "processInstance", execution);
 
@@ -89,7 +98,7 @@ public abstract class AbstractDeleteProcessInstanceCmd {
       commandContext.runWithoutAuthorization(new Callable<Void>() {
         public Void call() {
           ProcessInstanceModificationBuilderImpl builder = (ProcessInstanceModificationBuilderImpl) new ProcessInstanceModificationBuilderImpl(commandContext, superExecution.getProcessInstanceId(), deleteReason)
-            .cancelActivityInstance(superExecution.getActivityInstanceId());
+            .cancellationSourceExternal(externallyTerminated).cancelActivityInstance(superExecution.getActivityInstanceId());
           builder.execute(false, skipCustomListeners, skipIoMappings);
           return null;
         }

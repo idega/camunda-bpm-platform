@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,7 +42,11 @@ public enum Resources implements Resource {
   BATCH(EntityTypes.BATCH, 13),
   DECISION_REQUIREMENTS_DEFINITION(EntityTypes.DECISION_REQUIREMENTS_DEFINITION, 14),
   REPORT(EntityTypes.REPORT, 15),
-  DASHBOARD(EntityTypes.DASHBOARD, 16);
+  DASHBOARD(EntityTypes.DASHBOARD, 16),
+  OPERATION_LOG_CATEGORY(EntityTypes.OPERATION_LOG_CATEGORY, 17),
+  @Deprecated
+  OPTIMIZE(EntityTypes.OPTIMIZE, 18),
+  HISTORIC_TASK(EntityTypes.HISTORIC_TASK, 19);
 
   String name;
   int id;

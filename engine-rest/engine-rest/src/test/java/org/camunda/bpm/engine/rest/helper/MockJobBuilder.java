@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +37,8 @@ public class MockJobBuilder {
 	protected long priority;
 	protected String jobDefinitionId;
 	protected String tenantId;
+	protected Date createTime;
+	protected String failedActivityId;
 
 	public MockJobBuilder id(String id) {
 		this.id = id;
@@ -94,6 +100,16 @@ public class MockJobBuilder {
 	  return this;
 	}
 
+	public MockJobBuilder createTime(Date createTime) {
+		this.createTime = createTime;
+		return this;
+	}
+
+	public MockJobBuilder failedActivityId(String failedActivityId) {
+	  this.failedActivityId = failedActivityId;
+	  return this;
+	}
+
 	public Job build() {
 		Job mockJob = mock(Job.class);
 		when(mockJob.getId()).thenReturn(id);
@@ -108,6 +124,8 @@ public class MockJobBuilder {
 		when(mockJob.getPriority()).thenReturn(priority);
 		when(mockJob.getJobDefinitionId()).thenReturn(jobDefinitionId);
 		when(mockJob.getTenantId()).thenReturn(tenantId);
+		when(mockJob.getCreateTime()).thenReturn(createTime);
+		when(mockJob.getFailedActivityId()).thenReturn(failedActivityId);
 		return mockJob;
 	}
 

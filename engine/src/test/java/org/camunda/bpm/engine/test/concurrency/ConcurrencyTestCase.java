@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -28,7 +32,7 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
 
   @Override
   protected void setUp() throws Exception {
-    controllableCommands = new ArrayList<ControllableCommand<?>>();
+    controllableCommands = new ArrayList<>();
     super.setUp();
   }
 
@@ -152,6 +156,15 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
         if (!reportFailure || exception == null) {
           fail("Unexpected interruption");
         }
+      } finally {
+        // clear our interruption state; the controlled thread may have interrupted us 
+        // in case the controlled command failed (see ConcurrencyTestCase#executeControllableCommand).
+        // 
+        // If the controlled thread finished before we entered the #join method, #join returns 
+        // immediately and does not clear our interruption status. If we do not clear the
+        // interruption status here, any subsequent call of interrupt-sensitive
+        // methods may fail (e.g. monitors, IO operations)
+        Thread.interrupted();
       }
     }
 

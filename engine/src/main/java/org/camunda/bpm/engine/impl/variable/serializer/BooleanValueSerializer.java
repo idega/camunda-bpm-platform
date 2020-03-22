@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,10 +37,10 @@ public class BooleanValueSerializer extends PrimitiveValueSerializer<BooleanValu
   }
 
   public BooleanValue convertToTypedValue(UntypedValueImpl untypedValue) {
-    return Variables.booleanValue((Boolean) untypedValue.getValue());
+    return Variables.booleanValue((Boolean) untypedValue.getValue(), untypedValue.isTransient());
   }
 
-  public BooleanValue readValue(ValueFields valueFields) {
+  public BooleanValue readValue(ValueFields valueFields, boolean asTransientValue) {
     Boolean boolValue = null;
     Long longValue = valueFields.getLongValue();
 
@@ -44,7 +48,7 @@ public class BooleanValueSerializer extends PrimitiveValueSerializer<BooleanValu
       boolValue = longValue.equals(TRUE);
     }
 
-    return Variables.booleanValue(boolValue);
+    return Variables.booleanValue(boolValue, asTransientValue);
   }
 
   public void writeValue(BooleanValue variableValue, ValueFields valueFields) {

@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +22,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.TransitionInstance;
 
 /**
@@ -27,15 +32,20 @@ import org.camunda.bpm.engine.runtime.TransitionInstance;
  */
 public class ActivityInstanceImpl extends ProcessElementInstanceImpl implements ActivityInstance {
 
+  protected static final ActivityInstance[] NO_ACTIVITY_INSTANCES = new ActivityInstance[0];
+  protected static final TransitionInstance[] NO_TRANSITION_INSTANCES = new TransitionInstance[0];
+
   protected String businessKey;
   protected String activityId;
   protected String activityName;
   protected String activityType;
 
-  protected ActivityInstance[] childActivityInstances = new ActivityInstance[0];
-  protected TransitionInstance[] childTransitionInstances = new TransitionInstance[0];
+  protected ActivityInstance[] childActivityInstances = NO_ACTIVITY_INSTANCES;
+  protected TransitionInstance[] childTransitionInstances = NO_TRANSITION_INSTANCES;
 
-  protected String[] executionIds = new String[0];
+  protected String[] executionIds = NO_IDS;
+  protected String[] incidentIds = NO_IDS;
+  protected Incident[] incidents = new Incident[0];
 
   public ActivityInstance[] getChildActivityInstances() {
     return childActivityInstances;
@@ -91,6 +101,22 @@ public class ActivityInstanceImpl extends ProcessElementInstanceImpl implements 
 
   public void setActivityName(String activityName) {
     this.activityName = activityName;
+  }
+
+  public String[] getIncidentIds() {
+    return incidentIds;
+  }
+
+  public void setIncidentIds(String[] incidentIds) {
+    this.incidentIds = incidentIds;
+  }
+
+  public Incident[] getIncidents() {
+    return incidents;
+  }
+
+  public void setIncidents(Incident[] incidents) {
+    this.incidents = incidents;
   }
 
   protected void writeTree(StringWriter writer, String prefix, boolean isTail) {

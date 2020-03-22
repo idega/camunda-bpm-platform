@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.bpmn.event.signal;
 
 import java.io.ByteArrayInputStream;
@@ -46,7 +49,9 @@ import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.Variables.SerializationDataFormats;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
+import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
@@ -63,7 +68,8 @@ import static org.junit.Assert.fail;
  */
 public class SignalEventTest {
 
-  protected ProcessEngineBootstrapRule bootstrapRule = new ProcessEngineBootstrapRule() {
+  @ClassRule
+  public static ProcessEngineBootstrapRule bootstrapRule = new ProcessEngineBootstrapRule() {
     public ProcessEngineConfiguration configureEngine(ProcessEngineConfigurationImpl configuration) {
       configuration.setJavaSerializationFormatEnabled(true);
       return configuration;
@@ -73,7 +79,7 @@ public class SignalEventTest {
   public ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
 
   @Rule
-  public RuleChain ruleChain = RuleChain.outerRule(bootstrapRule).around(engineRule).around(testRule);
+  public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testRule);
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -84,6 +90,8 @@ public class SignalEventTest {
   private ManagementService managementService;
   private ProcessEngineConfigurationImpl processEngineConfiguration;
 
+  protected boolean defaultEnsureJobDueDateSet;
+
   @Before
   public void init() {
     runtimeService = engineRule.getRuntimeService();
@@ -91,6 +99,12 @@ public class SignalEventTest {
     repositoryService = engineRule.getRepositoryService();
     managementService = engineRule.getManagementService();
     processEngineConfiguration = engineRule.getProcessEngineConfiguration();
+    defaultEnsureJobDueDateSet = processEngineConfiguration.isEnsureJobDueDateNotNull();
+  }
+
+  @After
+  public void resetConfiguration() {
+    processEngineConfiguration.setEnsureJobDueDateNotNull(defaultEnsureJobDueDateSet);
   }
 
   @Deployment(resources = {
@@ -132,11 +146,11 @@ public class SignalEventTest {
       "org/camunda/bpm/engine/test/bpmn/event/signal/SignalEventTests.throwAlertSignal.bpmn20.xml"})
   @Test
   public void testSignalCatchBoundaryWithVariables() {
-    HashMap<String, Object> variables1 = new HashMap<String, Object>();
+    HashMap<String, Object> variables1 = new HashMap<>();
     variables1.put("processName", "catchSignal");
     ProcessInstance pi = runtimeService.startProcessInstanceByKey("catchSignal", variables1);
 
-    HashMap<String, Object> variables2 = new HashMap<String, Object>();
+    HashMap<String, Object> variables2 = new HashMap<>();
     variables2.put("processName", "throwSignal");
     runtimeService.startProcessInstanceByKey("throwSignal", variables2);
 
@@ -464,10 +478,47 @@ public class SignalEventTest {
   }
 
   @Deployment(resources = {
+    "org/camunda/bpm/engine/test/bpmn/event/signal/SignalEventTest.signalStartEvent.bpmn20.xml",
+    "org/camunda/bpm/engine/test/bpmn/event/signal/SignalEventTests.throwAlertSignalAsync.bpmn20.xml"})
+  @Test
+  public void testAsyncSignalStartEventJobProperties() {
+    processEngineConfiguration.setEnsureJobDueDateNotNull(false);
+
+    ProcessDefinition catchingProcessDefinition = repositoryService
+      .createProcessDefinitionQuery()
+      .processDefinitionKey("startBySignal")
+      .singleResult();
+
+    // given a process instance that throws a signal asynchronously
+    runtimeService.startProcessInstanceByKey("throwSignalAsync");
+    // where the throwing instance ends immediately
+
+    // then there is not yet a catching process instance
+    assertEquals(0, runtimeService.createProcessInstanceQuery().count());
+
+    // but there is a job for the asynchronous continuation
+    Job asyncJob = managementService.createJobQuery().singleResult();
+    assertEquals(catchingProcessDefinition.getId(), asyncJob.getProcessDefinitionId());
+    assertEquals(catchingProcessDefinition.getKey(), asyncJob.getProcessDefinitionKey());
+    assertNull(asyncJob.getExceptionMessage());
+    assertNull(asyncJob.getExecutionId());
+    assertNull(asyncJob.getJobDefinitionId());
+    assertEquals(0, asyncJob.getPriority());
+    assertNull(asyncJob.getProcessInstanceId());
+    assertEquals(3, asyncJob.getRetries());
+    assertNull(asyncJob.getDuedate());
+    assertNull(asyncJob.getDeploymentId());
+  }
+
+  @Deployment(resources = {
       "org/camunda/bpm/engine/test/bpmn/event/signal/SignalEventTest.signalStartEvent.bpmn20.xml",
       "org/camunda/bpm/engine/test/bpmn/event/signal/SignalEventTests.throwAlertSignalAsync.bpmn20.xml"})
   @Test
-  public void testAsyncSignalStartEventJobProperties() {
+  public void testAsyncSignalStartEventJobPropertiesDueDateSet() {
+    Date testTime = new Date(1457326800000L);
+    ClockUtil.setCurrentTime(testTime);
+    processEngineConfiguration.setEnsureJobDueDateNotNull(true);
+
     ProcessDefinition catchingProcessDefinition = repositoryService
         .createProcessDefinitionQuery()
         .processDefinitionKey("startBySignal")
@@ -490,7 +541,7 @@ public class SignalEventTest {
     assertEquals(0, asyncJob.getPriority());
     assertNull(asyncJob.getProcessInstanceId());
     assertEquals(3, asyncJob.getRetries());
-    assertNull(asyncJob.getDuedate());
+    assertEquals(testTime, asyncJob.getDuedate());
     assertNull(asyncJob.getDeploymentId());
   }
 
@@ -527,8 +578,7 @@ public class SignalEventTest {
    */
   @Deployment
   @Test
-  @Ignore
-  public void FAILING_testNoContinuationWhenSignalInterruptsThrowingActivity() {
+  public void testNoContinuationWhenSignalInterruptsThrowingActivity() {
 
     // given a process instance
     runtimeService.startProcessInstanceByKey("signalEventSubProcess");
@@ -611,6 +661,29 @@ public class SignalEventTest {
 
     // and a task
     assertEquals(1, taskService.createTaskQuery().count());
+  }
+
+  @Test
+  @Deployment
+  public void testThrownSignalInEventSubprocessInSubprocess() {
+    runtimeService.startProcessInstanceByKey("embeddedEventSubprocess");
+
+    Task taskBefore = taskService.createTaskQuery().singleResult();
+    assertNotNull(taskBefore);
+    assertEquals("task in subprocess", taskBefore.getName());
+
+    Job job = managementService.createJobQuery().singleResult();
+    assertNotNull(job);
+
+    //when job is executed task is created
+    managementService.executeJob(job.getId());
+
+    Task taskAfter = taskService.createTaskQuery().singleResult();
+    assertNotNull(taskAfter);
+    assertEquals("after catch", taskAfter.getName());
+
+    Job jobAfter = managementService.createJobQuery().singleResult();
+    assertNull(jobAfter);
   }
 
 }

@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -16,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.ProcessInstanceQueryImpl;
@@ -58,14 +63,11 @@ public abstract class AbstractUpdateProcessInstancesSuspendStateCmd<T> implement
     return allProcessInstanceIds;
   }
 
-  protected void writeUserOperationLog(CommandContext commandContext,
-                                       int numInstances,
+  protected void writeUserOperationLog(CommandContext commandContext, int numInstances,
                                        boolean async) {
 
     List<PropertyChange> propertyChanges = new ArrayList<PropertyChange>();
-    propertyChanges.add(new PropertyChange("nrOfInstances",
-      null,
-      numInstances));
+    propertyChanges.add(new PropertyChange("nrOfInstances", null, numInstances));
     propertyChanges.add(new PropertyChange("async", null, async));
 
     String operationType;
@@ -82,4 +84,9 @@ public abstract class AbstractUpdateProcessInstancesSuspendStateCmd<T> implement
           null,
           propertyChanges);
   }
+
+  protected void writeUserOperationLogAsync(CommandContext commandContext, int numInstances) {
+    writeUserOperationLog(commandContext, numInstances, true);
+  }
+
 }

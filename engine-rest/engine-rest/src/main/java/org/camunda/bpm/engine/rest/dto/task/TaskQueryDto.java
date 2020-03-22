@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -83,7 +87,7 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
 
   public static final List<String> VALID_SORT_BY_VALUES;
   static {
-    VALID_SORT_BY_VALUES = new ArrayList<String>();
+    VALID_SORT_BY_VALUES = new ArrayList<>();
     VALID_SORT_BY_VALUES.add(SORT_BY_PROCESS_INSTANCE_ID_VALUE);
     VALID_SORT_BY_VALUES.add(SORT_BY_CASE_INSTANCE_ID_VALUE);
     VALID_SORT_BY_VALUES.add(SORT_BY_DUE_DATE_VALUE);
@@ -116,10 +120,12 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   private String processDefinitionName;
   private String processDefinitionNameLike;
   private String processInstanceId;
+  private String[] processInstanceIdIn;
   private String assignee;
   private String assigneeExpression;
   private String assigneeLike;
   private String assigneeLikeExpression;
+  private String[] assigneeIn;
   private String candidateGroup;
   private String candidateGroupExpression;
   private String candidateUser;
@@ -188,6 +194,9 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   protected Boolean withoutCandidateGroups;
   protected Boolean withCandidateUsers;
   protected Boolean withoutCandidateUsers;
+  
+  protected Boolean variableNamesIgnoreCase;
+  protected Boolean variableValuesIgnoreCase;
 
   private List<VariableQueryParameterDto> taskVariables;
   private List<VariableQueryParameterDto> processVariables;
@@ -283,6 +292,11 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     this.processInstanceId = processInstanceId;
   }
 
+  @CamundaQueryParam(value = "processInstanceIdIn", converter = StringArrayConverter.class)
+  public void setProcessInstanceIdIn(String[] processInstanceIdIn) {
+    this.processInstanceIdIn = processInstanceIdIn;
+  }
+
   @CamundaQueryParam("assignee")
   public void setAssignee(String assignee) {
     this.assignee = assignee;
@@ -296,6 +310,11 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   @CamundaQueryParam("assigneeLike")
   public void setAssigneeLike(String assigneeLike) {
     this.assigneeLike = assigneeLike;
+  }
+
+  @CamundaQueryParam(value = "assigneeIn", converter = StringArrayConverter.class)
+  public void setAssigneeIn(String[] assigneeIn) {
+    this.assigneeIn = assigneeIn;
   }
 
   @CamundaQueryParam("assigneeLikeExpression")
@@ -640,6 +659,16 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   public void setCaseInstanceVariables(List<VariableQueryParameterDto> caseInstanceVariables) {
     this.caseInstanceVariables = caseInstanceVariables;
   }
+  
+  @CamundaQueryParam(value = "variableNamesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableNamesIgnoreCase(Boolean variableNamesCaseInsensitive) {
+    this.variableNamesIgnoreCase = variableNamesCaseInsensitive;
+  }
+
+  @CamundaQueryParam(value ="variableValuesIgnoreCase", converter = BooleanConverter.class)
+  public void setVariableValuesIgnoreCase(Boolean variableValuesCaseInsensitive) {
+    this.variableValuesIgnoreCase = variableValuesCaseInsensitive;
+  }
 
   @Override
   protected boolean isValidSortByValue(String value) {
@@ -711,6 +740,10 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     return processInstanceId;
   }
 
+  public String[] getProcessInstanceIdIn() {
+    return processInstanceIdIn;
+  }
+
   public String getAssignee() {
     return assignee;
   }
@@ -721,6 +754,10 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
 
   public String getAssigneeLike() {
     return assigneeLike;
+  }
+
+  public String[] getAssigneeIn() {
+    return assigneeIn;
   }
 
   public String getAssigneeLikeExpression() {
@@ -966,6 +1003,14 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   public List<TaskQueryDto> getOrQueries() {
     return orQueries;
   }
+  
+  public Boolean isVariableNamesIgnoreCase() {
+    return variableNamesIgnoreCase;
+  }
+
+  public Boolean isVariableValuesIgnoreCase() {
+    return variableValuesIgnoreCase;
+  }
 
   @Override
   protected void applyFilters(TaskQuery query) {
@@ -1022,6 +1067,9 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     if (processInstanceId != null) {
       query.processInstanceId(processInstanceId);
     }
+    if (processInstanceIdIn != null && processInstanceIdIn.length > 0) {
+      query.processInstanceIdIn(processInstanceIdIn);
+    }
     if (assignee != null) {
       query.taskAssignee(assignee);
     }
@@ -1033,6 +1081,9 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     }
     if (assigneeLikeExpression != null) {
       query.taskAssigneeLikeExpression(assigneeLikeExpression);
+    }
+    if (assigneeIn != null && assigneeIn.length > 0) {
+      query.taskAssigneeIn(assigneeIn);
     }
     if (candidateGroup != null) {
       query.taskCandidateGroup(candidateGroup);
@@ -1219,6 +1270,12 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     if (caseInstanceId != null) {
       query.caseInstanceId(caseInstanceId);
     }
+    if(variableValuesIgnoreCase != null && variableValuesIgnoreCase) {
+      query.matchVariableValuesIgnoreCase();
+    }
+    if(variableNamesIgnoreCase != null && variableNamesIgnoreCase) {
+      query.matchVariableNamesIgnoreCase();
+    }
 
     if (taskVariables != null) {
       for (VariableQueryParameterDto variableQueryParam : taskVariables) {
@@ -1297,7 +1354,6 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
         } else {
           throw new InvalidRequestException(Status.BAD_REQUEST, "Invalid case variable comparator specified: " + op);
         }
-
       }
     }
   }
@@ -1394,7 +1450,7 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     TaskQueryDto dto = new TaskQueryDto();
 
     if (!isOrQueryActive) {
-      dto.orQueries = new ArrayList<TaskQueryDto>();
+      dto.orQueries = new ArrayList<>();
       for (TaskQueryImpl orQuery: taskQuery.getQueries()) {
         if (orQuery.isOrQueryActive()) {
           dto.orQueries.add(fromQuery(orQuery, true));
@@ -1431,7 +1487,17 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     dto.processDefinitionName = taskQuery.getProcessDefinitionName();
     dto.processDefinitionNameLike = taskQuery.getProcessDefinitionNameLike();
     dto.processInstanceId = taskQuery.getProcessInstanceId();
+    if(taskQuery.getProcessInstanceIdIn() != null) {
+      dto.processInstanceIdIn = taskQuery.getProcessInstanceIdIn();
+    }
+
     dto.assignee = taskQuery.getAssignee();
+
+    if (taskQuery.getAssigneeIn() != null) {
+      dto.assigneeIn = taskQuery.getAssigneeIn()
+          .toArray(new String[taskQuery.getAssigneeIn().size()]);
+    }
+
     dto.assigneeLike = taskQuery.getAssigneeLike();
     dto.taskDefinitionKey = taskQuery.getKey();
     dto.taskDefinitionKeyIn = taskQuery.getKeys();
@@ -1455,6 +1521,9 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     dto.dueBefore = taskQuery.getDueBefore();
     dto.dueDate = taskQuery.getDueDate();
     dto.followUpAfter = taskQuery.getFollowUpAfter();
+    
+    dto.variableNamesIgnoreCase = taskQuery.isVariableNamesIgnoreCase();
+    dto.variableValuesIgnoreCase = taskQuery.isVariableValuesIgnoreCase();
 
     if (taskQuery.isFollowUpNullAccepted()) {
       dto.followUpBeforeOrNotExistent = taskQuery.getFollowUpBefore();
@@ -1478,9 +1547,9 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
       }
     }
 
-    dto.processVariables = new ArrayList<VariableQueryParameterDto>();
-    dto.taskVariables = new ArrayList<VariableQueryParameterDto>();
-    dto.caseInstanceVariables = new ArrayList<VariableQueryParameterDto>();
+    dto.processVariables = new ArrayList<>();
+    dto.taskVariables = new ArrayList<>();
+    dto.caseInstanceVariables = new ArrayList<>();
     for (TaskQueryVariableValue variableValue : taskQuery.getVariables()) {
       VariableQueryParameterDto variableValueDto = new VariableQueryParameterDto(variableValue);
 
@@ -1570,7 +1639,7 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   }
 
   public static List<SortingDto> convertQueryOrderingPropertiesToSortingDtos(List<QueryOrderingProperty> orderingProperties) {
-    List<SortingDto> sortingDtos = new ArrayList<SortingDto>();
+    List<SortingDto> sortingDtos = new ArrayList<>();
     for (QueryOrderingProperty orderingProperty : orderingProperties) {
       SortingDto sortingDto;
       if (orderingProperty instanceof VariableOrderProperty) {
@@ -1682,7 +1751,7 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   }
 
   public static Map<String,Object> sortParametersForVariableOrderProperty(VariableOrderProperty variableOrderProperty) {
-    Map<String, Object> parameters = new HashMap<String, Object>();
+    Map<String, Object> parameters = new HashMap<>();
     for (QueryEntityRelationCondition relationCondition : variableOrderProperty.getRelationConditions()) {
       QueryProperty property = relationCondition.getProperty();
       if (VariableInstanceQueryProperty.VARIABLE_NAME.equals(property)) {
@@ -1695,5 +1764,4 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     }
     return parameters;
   }
-
 }

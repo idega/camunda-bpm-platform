@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,11 +36,6 @@ public class DbEntityOperation extends DbOperation {
 
   protected Set<String> flushRelevantEntityReferences;
 
-  /**
-   * Indicates whether the operation failed to execute due to OptimisticLocking
-   */
-  protected boolean failed = false;
-
   public void recycle() {
     entity = null;
     super.recycle();
@@ -49,14 +48,6 @@ public class DbEntityOperation extends DbOperation {
   public void setEntity(DbEntity dbEntity) {
     this.entityType = dbEntity.getClass();
     this.entity = dbEntity;
-  }
-
-  public void setFailed(boolean failed) {
-    this.failed = failed;
-  }
-
-  public boolean isFailed() {
-    return failed;
   }
 
   public void setFlushRelevantEntityReferences(Set<String> flushRelevantEntityReferences) {

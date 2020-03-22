@@ -1,9 +1,13 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
- *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -12,8 +16,9 @@
  */
 package org.camunda.bpm.engine.rest.dto.authorization;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.authorization.Authorization;
-import org.camunda.bpm.engine.rest.dto.converter.PermissionConverter;
+import org.camunda.bpm.engine.impl.util.PermissionConverter;
 
 /**
  * @author Daniel Meyer
@@ -30,13 +35,13 @@ public class AuthorizationCreateDto {
   
   // transformers ///////////////////////////////////////
     
-  public static void update(AuthorizationCreateDto dto, Authorization dbAuthorization) {
+  public static void update(AuthorizationCreateDto dto, Authorization dbAuthorization, ProcessEngineConfiguration engineConfiguration) {
     
     dbAuthorization.setGroupId(dto.getGroupId());
     dbAuthorization.setUserId(dto.getUserId());
     dbAuthorization.setResourceType(dto.getResourceType());
     dbAuthorization.setResourceId(dto.getResourceId());
-    dbAuthorization.setPermissions(PermissionConverter.getPermissionsForNames(dto.getPermissions()));
+    dbAuthorization.setPermissions(PermissionConverter.getPermissionsForNames(dto.getPermissions(), dto.getResourceType(), engineConfiguration));
     
   }
     

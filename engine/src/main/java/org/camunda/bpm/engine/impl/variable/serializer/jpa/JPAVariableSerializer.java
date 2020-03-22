@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.variable.serializer.jpa;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -60,7 +63,7 @@ public class JPAVariableSerializer extends AbstractTypedValueSerializer<ObjectVa
   }
 
   public ObjectValue convertToTypedValue(UntypedValueImpl untypedValue) {
-    return Variables.objectValue(untypedValue.getValue()).create();
+    return Variables.objectValue(untypedValue.getValue(), untypedValue.isTransient()).create();
   }
 
   public void writeValue(ObjectValue objectValue, ValueFields valueFields) {
@@ -88,12 +91,12 @@ public class JPAVariableSerializer extends AbstractTypedValueSerializer<ObjectVa
     }
   }
 
-  public ObjectValue readValue(ValueFields valueFields, boolean deserializeObjectValue) {
+  public ObjectValue readValue(ValueFields valueFields, boolean deserializeObjectValue, boolean asTransientValue) {
     if(valueFields.getTextValue() != null && valueFields.getTextValue2() != null) {
       Object jpaEntity = mappings.getJPAEntity(valueFields.getTextValue(), valueFields.getTextValue2());
-      return Variables.objectValue(jpaEntity).create();
+      return Variables.objectValue(jpaEntity).setTransient(asTransientValue).create();
     }
-    return Variables.objectValue(null).create();
+    return Variables.objectValue(null).setTransient(asTransientValue).create();
   }
 
 }

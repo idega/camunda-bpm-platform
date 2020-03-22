@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,8 +17,10 @@
 package org.camunda.bpm.engine.impl.history.event;
 
 import java.io.Serializable;
+import java.util.Date;
 
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.HistoricEntity;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
 
@@ -39,7 +45,7 @@ import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
  * @author Daniel Meyer
  *
  */
-public class HistoryEvent implements Serializable, DbEntity {
+public class HistoryEvent implements Serializable, DbEntity, HistoricEntity {
 
   private static final long serialVersionUID = 1L;
 
@@ -85,6 +91,9 @@ public class HistoryEvent implements Serializable, DbEntity {
   /** each {@link HistoryEvent} has a unique id */
   protected String id;
 
+  /** the root process instance in which the event has happened */
+  protected String rootProcessInstanceId;
+
   /** the process instance in which the event has happened */
   protected String processInstanceId;
 
@@ -126,6 +135,9 @@ public class HistoryEvent implements Serializable, DbEntity {
 
   protected long sequenceCounter;
 
+  /* the time when the history event will be deleted */
+  protected Date removalTime;
+
   // getters / setters ///////////////////////////////////
 
   public String getProcessInstanceId() {
@@ -134,6 +146,14 @@ public class HistoryEvent implements Serializable, DbEntity {
 
   public void setProcessInstanceId(String processInstanceId) {
     this.processInstanceId = processInstanceId;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
   }
 
   public String getExecutionId() {
@@ -240,6 +260,14 @@ public class HistoryEvent implements Serializable, DbEntity {
     this.sequenceCounter = sequenceCounter;
   }
 
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public void setRemovalTime(Date removalTime) {
+    this.removalTime = removalTime;
+  }
+
   // persistent object implementation ///////////////
 
   public Object getPersistentState() {
@@ -261,6 +289,8 @@ public class HistoryEvent implements Serializable, DbEntity {
            + ", executionId=" + executionId
            + ", processDefinitionId=" + processDefinitionId
            + ", processInstanceId=" + processInstanceId
+           + ", rootProcessInstanceId=" + rootProcessInstanceId
+           + ", removalTime=" + removalTime
            + "]";
   }
 

@@ -1,7 +1,24 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.test.history;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
@@ -13,6 +30,7 @@ import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.EndEvent;
 import org.camunda.bpm.model.bpmn.instance.TerminateEventDefinition;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -23,6 +41,7 @@ import java.util.List;
 import static junit.framework.TestCase.fail;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
@@ -239,6 +258,51 @@ public class HistoricProcessInstanceStateTest {
     assertEquals(1, processEngineRule.getHistoryService().createHistoricProcessInstanceQuery().completed().count());
     assertThat(entity2.getState(), is(HistoricProcessInstance.STATE_INTERNALLY_TERMINATED));
     assertEquals(1, processEngineRule.getHistoryService().createHistoricProcessInstanceQuery().internallyTerminated().count());
+  }
+
+  @Test
+  @Deployment(resources = {"org/camunda/bpm/engine/test/history/CAM-9934.bpmn"})
+  public void shouldSetCorrectInstanceStateOnInterruption() {
+    // given
+    processEngineRule.getRuntimeService().startProcessInstanceByKey("Process_1");
+
+    // when
+    processEngineRule.getRuntimeService()
+      .correlateMessage("SubProcessTrigger");
+
+    HistoricProcessInstance historicProcessInstance = processEngineRule.getHistoryService()
+      .createHistoricProcessInstanceQuery()
+      .singleResult();
+
+    // then
+    assertThat(historicProcessInstance.getState(), is(HistoricProcessInstance.STATE_ACTIVE));
+    assertThat(historicProcessInstance.getEndTime(), nullValue());
+  }
+
+  @Test
+  @Deployment(resources = {"org/camunda/bpm/engine/test/history/CAM-9934.bpmn"})
+  public void shouldSetRemovalTimeOnHistoricActivityInstances() {
+    // given
+    processEngineRule.getProcessEngineConfiguration()
+        .setHistoryRemovalTimeStrategy("start");
+
+    processEngineRule.getRuntimeService().startProcessInstanceByKey("Process_1");
+
+    // when
+    processEngineRule.getRuntimeService()
+      .correlateMessage("SubProcessTrigger");
+
+    HistoricTaskInstance taskInstance = processEngineRule.getHistoryService()
+        .createHistoricTaskInstanceQuery()
+        .taskDefinitionKey("Task_1eg238f")
+        .singleResult();
+
+    // then
+    assertThat(taskInstance.getRemovalTime(), notNullValue());
+
+    // clear
+    processEngineRule.getProcessEngineConfiguration()
+        .setHistoryRemovalTimeStrategy("end");
   }
 
   private HistoricProcessInstance getHistoricProcessInstanceWithAssertion(ProcessDefinition processDefinition) {

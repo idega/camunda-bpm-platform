@@ -1,6 +1,22 @@
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
@@ -15,6 +31,8 @@ import java.util.List;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.AuthorizationException;
+import org.camunda.bpm.engine.impl.ActivityStatisticsQueryImpl;
+import org.camunda.bpm.engine.impl.ProcessDefinitionStatisticsQueryImpl;
 import org.camunda.bpm.engine.management.ActivityStatistics;
 import org.camunda.bpm.engine.management.ActivityStatisticsQuery;
 import org.camunda.bpm.engine.management.ProcessDefinitionStatistics;
@@ -29,7 +47,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
+import io.restassured.http.ContentType;
 
 public class StatisticsRestTest extends AbstractRestServiceTest {
 
@@ -53,16 +71,16 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
   private void setupActivityStatisticsMock() {
     List<ActivityStatistics> mocks = MockProvider.createMockActivityStatistics();
 
-    activityQueryMock = mock(ActivityStatisticsQuery.class);
-    when(activityQueryMock.list()).thenReturn(mocks);
+    activityQueryMock = mock(ActivityStatisticsQueryImpl.class);
+    when(activityQueryMock.unlimitedList()).thenReturn(mocks);
     when(processEngine.getManagementService().createActivityStatisticsQuery(any(String.class))).thenReturn(activityQueryMock);
   }
 
   private void setupProcessDefinitionStatisticsMock() {
     List<ProcessDefinitionStatistics> mocks = MockProvider.createMockProcessDefinitionStatistics();
 
-    processDefinitionStatisticsQueryMock = mock(ProcessDefinitionStatisticsQuery.class);
-    when(processDefinitionStatisticsQueryMock.list()).thenReturn(mocks);
+    processDefinitionStatisticsQueryMock = mock(ProcessDefinitionStatisticsQueryImpl.class);
+    when(processDefinitionStatisticsQueryMock.unlimitedList()).thenReturn(mocks);
     when(processEngine.getManagementService().createProcessDefinitionStatisticsQuery()).thenReturn(processDefinitionStatisticsQueryMock);
   }
 
@@ -139,7 +157,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);
     inOrder.verify(processDefinitionStatisticsQueryMock).includeFailedJobs();
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 
   @Test
@@ -151,7 +169,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);
     inOrder.verify(processDefinitionStatisticsQueryMock).includeIncidents();
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 
   @Test
@@ -163,7 +181,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);
     inOrder.verify(processDefinitionStatisticsQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 
   @Test
@@ -176,7 +194,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);
     inOrder.verify(processDefinitionStatisticsQueryMock).includeFailedJobs();
     inOrder.verify(processDefinitionStatisticsQueryMock).includeIncidents();
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 
   @Test
@@ -189,7 +207,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);
     inOrder.verify(processDefinitionStatisticsQueryMock).includeFailedJobs();
     inOrder.verify(processDefinitionStatisticsQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 
   @Test
@@ -209,7 +227,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -221,7 +239,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -233,7 +251,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeIncidents();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify(((ActivityStatisticsQueryImpl)activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -245,7 +263,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeIncidents();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -257,7 +275,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -269,7 +287,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -283,7 +301,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
     inOrder.verify(activityQueryMock).includeIncidents();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -297,7 +315,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
     inOrder.verify(activityQueryMock).includeIncidents();
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
@@ -311,13 +329,13 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
     inOrder.verify(activityQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify((activityQueryMock)).unlimitedList();
   }
 
   @Test
   public void testActivtyStatisticsByIdThrowsAuthorizationException() {
     String message = "expected exception";
-    when(activityQueryMock.list()).thenThrow(new AuthorizationException(message));
+    when((activityQueryMock).unlimitedList()).thenThrow(new AuthorizationException(message));
 
     given()
       .pathParam("id", "aDefinitionId")
@@ -340,7 +358,7 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
     InOrder inOrder = Mockito.inOrder(activityQueryMock);
     inOrder.verify(activityQueryMock).includeFailedJobs();
     inOrder.verify(activityQueryMock).includeIncidentsForType("failedJob");
-    inOrder.verify(activityQueryMock).list();
+    inOrder.verify(activityQueryMock).unlimitedList();
   }
 
   @Test
@@ -364,7 +382,8 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
   @Test
   public void testActivtyStatisticsByIdThrowsAuthorizationExceptionByKey() {
     String message = "expected exception";
-    when(activityQueryMock.list()).thenThrow(new AuthorizationException(message));
+    when((activityQueryMock).unlimitedList())
+        .thenThrow(new AuthorizationException(message));
 
     given()
       .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
@@ -385,6 +404,6 @@ public class StatisticsRestTest extends AbstractRestServiceTest {
 
     InOrder inOrder = Mockito.inOrder(processDefinitionStatisticsQueryMock);;
     inOrder.verify(processDefinitionStatisticsQueryMock).includeRootIncidents();
-    inOrder.verify(processDefinitionStatisticsQueryMock).list();
+    inOrder.verify(processDefinitionStatisticsQueryMock).unlimitedList();
   }
 }

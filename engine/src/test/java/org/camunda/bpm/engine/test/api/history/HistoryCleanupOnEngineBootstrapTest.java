@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,13 +14,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.history;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.List;
+
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngine;
@@ -26,21 +36,16 @@ import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.impl.cfg.BatchWindowConfiguration;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobHandlerConfiguration;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
-import org.camunda.bpm.engine.impl.util.json.JSONObject;
+import org.camunda.bpm.engine.impl.util.JsonUtil;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * @author Nikola Koevski
@@ -236,18 +241,46 @@ public class HistoryCleanupOnEngineBootstrapTest {
     ProcessEngine engine = standaloneInMemProcessEngineConfiguration
       .buildProcessEngine();
 
-    final List<Job> historyCleanupJobs = engine.getHistoryService().findHistoryCleanupJobs();
-    assertFalse(historyCleanupJobs.isEmpty());
-    final ProcessEngineConfigurationImpl processEngineConfiguration = (ProcessEngineConfigurationImpl) engine.getProcessEngineConfiguration();
-    for (Job historyCleanupJob : historyCleanupJobs) {
-      assertEquals(processEngineConfiguration.getBatchWindowManager().getCurrentOrNextBatchWindow(ClockUtil.getCurrentTime(), processEngineConfiguration).getStart(), historyCleanupJob.getDuedate());
+    try {
+      final List<Job> historyCleanupJobs = engine.getHistoryService().findHistoryCleanupJobs();
+      assertFalse(historyCleanupJobs.isEmpty());
+      final ProcessEngineConfigurationImpl processEngineConfiguration = (ProcessEngineConfigurationImpl) engine.getProcessEngineConfiguration();
+      for (Job historyCleanupJob : historyCleanupJobs) {
+        assertEquals(processEngineConfiguration.getBatchWindowManager().getCurrentOrNextBatchWindow(ClockUtil.getCurrentTime(), processEngineConfiguration).getStart(), historyCleanupJob.getDuedate());
+      }
+    } finally {
+      closeProcessEngine(engine);
     }
+  }
 
-    closeProcessEngine(engine);
+  @Test
+  public void shouldCreateHistoryCleanupJobLogs() {
+
+    final ProcessEngineConfigurationImpl standaloneInMemProcessEngineConfiguration =
+        (ProcessEngineConfigurationImpl)ProcessEngineConfiguration
+            .createStandaloneInMemProcessEngineConfiguration();
+    standaloneInMemProcessEngineConfiguration.setHistoryCleanupBatchWindowStartTime("23:00");
+    standaloneInMemProcessEngineConfiguration.setHistoryCleanupBatchWindowEndTime("01:00");
+    standaloneInMemProcessEngineConfiguration
+        .setJdbcUrl("jdbc:h2:mem:camunda" + getClass().getSimpleName() + "testHistoryCleanupJobScheduled");
+
+    ProcessEngine engine = standaloneInMemProcessEngineConfiguration.buildProcessEngine();
+    try {
+      List<HistoricJobLog> historicJobLogs = engine.getHistoryService()
+                                                   .createHistoricJobLogQuery()
+                                                   .jobDefinitionType(HistoryCleanupJobHandler.TYPE)
+                                                   .list();
+      for (HistoricJobLog historicJobLog : historicJobLogs) {
+        assertNotNull(historicJobLog.getHostname());
+      }
+    } finally {
+      closeProcessEngine(engine);
+    }
   }
 
   @Test
   public void testBatchWindowOneDayOfWeek() throws ParseException {
+    ClockUtil.setCurrentTime(sdf.parse("2018-05-14T22:00:00"));       //monday
     //given
     final ProcessEngineConfigurationImpl configuration = (ProcessEngineConfigurationImpl)ProcessEngineConfiguration.createStandaloneInMemProcessEngineConfiguration();
     //we have batch window only once per week - Monday afternoon
@@ -256,7 +289,6 @@ public class HistoryCleanupOnEngineBootstrapTest {
 
     //when
     //we're on Monday evening
-    ClockUtil.setCurrentTime(sdf.parse("2018-05-14T22:00:00"));       //monday
     //and we bootstrap the engine
     ProcessEngine engine = configuration.buildProcessEngine();
 
@@ -354,31 +386,29 @@ public class HistoryCleanupOnEngineBootstrapTest {
 
   protected HistoryCleanupJobHandlerConfiguration getHistoryCleanupJobHandlerConfiguration(Job job) {
     return HistoryCleanupJobHandlerConfiguration
-          .fromJson(new JSONObject(((JobEntity) job).getJobHandlerConfigurationRaw()));
+          .fromJson(JsonUtil.asObject(((JobEntity) job).getJobHandlerConfigurationRaw()));
   }
 
   protected void closeProcessEngine(ProcessEngine processEngine) {
     ProcessEngineConfigurationImpl configuration = (ProcessEngineConfigurationImpl) processEngine.getProcessEngineConfiguration();
     final HistoryService historyService = processEngine.getHistoryService();
-    configuration.getCommandExecutorTxRequired().execute(new Command<Void>() {
-      public Void execute(CommandContext commandContext) {
+    configuration.getCommandExecutorTxRequired().execute((Command<Void>) commandContext -> {
 
-        List<Job> jobs = historyService.findHistoryCleanupJobs();
-        for (Job job: jobs) {
-          commandContext.getJobManager().deleteJob((JobEntity) job);
-          commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(job.getId());
-        }
-
-        //cleanup "detached" historic job logs
-        final List<HistoricJobLog> list = historyService.createHistoricJobLogQuery().list();
-        for (HistoricJobLog jobLog: list) {
-          commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(jobLog.getJobId());
-        }
-
-        commandContext.getMeterLogManager().deleteAll();
-
-        return null;
+      List<Job> jobs = historyService.findHistoryCleanupJobs();
+      for (Job job: jobs) {
+        commandContext.getJobManager().deleteJob((JobEntity) job);
+        commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(job.getId());
       }
+
+      //cleanup "detached" historic job logs
+      final List<HistoricJobLog> list = historyService.createHistoricJobLogQuery().list();
+      for (HistoricJobLog jobLog: list) {
+        commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(jobLog.getJobId());
+      }
+
+      commandContext.getMeterLogManager().deleteAll();
+
+      return null;
     });
 
     processEngine.close();

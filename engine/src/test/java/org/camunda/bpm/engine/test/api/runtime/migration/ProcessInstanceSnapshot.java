@@ -1,5 +1,9 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -10,7 +14,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.runtime.migration;
 
 import java.util.ArrayList;
@@ -206,12 +209,7 @@ public class ProcessInstanceSnapshot {
 
   public JobDefinition getJobDefinitionForActivityIdAndType(String activityId, String jobHandlerType) {
 
-    List<JobDefinition> collectedDefinitions = new ArrayList<JobDefinition>();
-    for (JobDefinition jobDefinition : getJobDefinitions()) {
-      if (activityId.equals(jobDefinition.getActivityId()) && jobHandlerType.equals(jobDefinition.getJobType())) {
-        collectedDefinitions.add(jobDefinition);
-      }
-    }
+    List<JobDefinition> collectedDefinitions = getJobDefinitionsForActivityIdAndType(activityId, jobHandlerType);
 
     if (collectedDefinitions.isEmpty()) {
       return null;
@@ -222,6 +220,16 @@ public class ProcessInstanceSnapshot {
     else {
       throw new RuntimeException("There is more than one job definition for activity " + activityId + " and job handler type " + jobHandlerType);
     }
+  }
+
+  protected List<JobDefinition> getJobDefinitionsForActivityIdAndType(String activityId, String jobHandlerType) {
+    List<JobDefinition> collectedDefinitions = new ArrayList<JobDefinition>();
+    for (JobDefinition jobDefinition : getJobDefinitions()) {
+      if (activityId.equals(jobDefinition.getActivityId()) && jobHandlerType.equals(jobDefinition.getJobType())) {
+        collectedDefinitions.add(jobDefinition);
+      }
+    }
+    return collectedDefinitions;
   }
 
   public void setJobDefinitions(List<JobDefinition> jobDefinitions) {

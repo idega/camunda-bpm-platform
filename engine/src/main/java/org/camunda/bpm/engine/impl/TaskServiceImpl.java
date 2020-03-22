@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -53,6 +57,8 @@ import org.camunda.bpm.engine.impl.cmd.GetTaskEventsCmd;
 import org.camunda.bpm.engine.impl.cmd.GetTaskVariableCmd;
 import org.camunda.bpm.engine.impl.cmd.GetTaskVariableCmdTyped;
 import org.camunda.bpm.engine.impl.cmd.GetTaskVariablesCmd;
+import org.camunda.bpm.engine.impl.cmd.HandleTaskBpmnErrorCmd;
+import org.camunda.bpm.engine.impl.cmd.HandleTaskEscalationCmd;
 import org.camunda.bpm.engine.impl.cmd.PatchTaskVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.RemoveTaskVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.ResolveTaskCmd;
@@ -166,11 +172,15 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
   }
 
   public void complete(String taskId) {
-    commandExecutor.execute(new CompleteTaskCmd(taskId, null));
+    complete(taskId, null);
   }
 
   public void complete(String taskId, Map<String, Object> variables) {
-    commandExecutor.execute(new CompleteTaskCmd(taskId, variables));
+    commandExecutor.execute(new CompleteTaskCmd(taskId, variables, false, false));
+  }
+
+  public VariableMap completeWithVariablesInReturn(String taskId, Map<String, Object> variables, boolean deserializeValues) {
+    return commandExecutor.execute(new CompleteTaskCmd(taskId, variables, true, deserializeValues));
   }
 
   public void delegateTask(String taskId, String userId) {
@@ -197,12 +207,12 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
     return new NativeTaskQueryImpl(commandExecutor);
   }
 
-  public VariableMap getVariables(String executionId) {
-    return getVariablesTyped(executionId);
+  public VariableMap getVariables(String taskId) {
+    return getVariablesTyped(taskId);
   }
 
-  public VariableMap getVariablesTyped(String executionId) {
-    return getVariablesTyped(executionId, true);
+  public VariableMap getVariablesTyped(String taskId) {
+    return getVariablesTyped(taskId, true);
   }
 
   public VariableMap getVariablesTyped(String taskId, boolean deserializeValues) {
@@ -221,28 +231,28 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
     return commandExecutor.execute(new GetTaskVariablesCmd(taskId, null, true, deserializeValues));
   }
 
-  public VariableMap getVariables(String executionId, Collection<String> variableNames) {
-    return getVariablesTyped(executionId, variableNames, true);
+  public VariableMap getVariables(String taskId, Collection<String> variableNames) {
+    return getVariablesTyped(taskId, variableNames, true);
   }
 
-  public VariableMap getVariablesTyped(String executionId, Collection<String> variableNames, boolean deserializeValues) {
-    return commandExecutor.execute(new GetTaskVariablesCmd(executionId, variableNames, false, deserializeValues));
+  public VariableMap getVariablesTyped(String taskId, Collection<String> variableNames, boolean deserializeValues) {
+    return commandExecutor.execute(new GetTaskVariablesCmd(taskId, variableNames, false, deserializeValues));
   }
 
-  public VariableMap getVariablesLocal(String executionId, Collection<String> variableNames) {
-    return getVariablesLocalTyped(executionId, variableNames, true);
+  public VariableMap getVariablesLocal(String taskId, Collection<String> variableNames) {
+    return getVariablesLocalTyped(taskId, variableNames, true);
   }
 
-  public VariableMap getVariablesLocalTyped(String executionId, Collection<String> variableNames, boolean deserializeValues) {
-    return commandExecutor.execute(new GetTaskVariablesCmd(executionId, variableNames, true, deserializeValues));
+  public VariableMap getVariablesLocalTyped(String taskId, Collection<String> variableNames, boolean deserializeValues) {
+    return commandExecutor.execute(new GetTaskVariablesCmd(taskId, variableNames, true, deserializeValues));
   }
 
-  public Object getVariable(String executionId, String variableName) {
-    return commandExecutor.execute(new GetTaskVariableCmd(executionId, variableName, false));
+  public Object getVariable(String taskId, String variableName) {
+    return commandExecutor.execute(new GetTaskVariableCmd(taskId, variableName, false));
   }
 
-  public Object getVariableLocal(String executionId, String variableName) {
-    return commandExecutor.execute(new GetTaskVariableCmd(executionId, variableName, true));
+  public Object getVariableLocal(String taskId, String variableName) {
+    return commandExecutor.execute(new GetTaskVariableCmd(taskId, variableName, true));
   }
 
   public <T extends TypedValue> T getVariableTyped(String taskId, String variableName) {
@@ -266,31 +276,31 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
     return (T) commandExecutor.execute(new GetTaskVariableCmdTyped(taskId, variableName, isLocal, deserializeValue));
   }
 
-  public void setVariable(String executionId, String variableName, Object value) {
+  public void setVariable(String taskId, String variableName, Object value) {
     ensureNotNull("variableName", variableName);
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put(variableName, value);
-    setVariables(executionId, variables, false);
+    setVariables(taskId, variables, false);
   }
 
-  public void setVariableLocal(String executionId, String variableName, Object value) {
+  public void setVariableLocal(String taskId, String variableName, Object value) {
     ensureNotNull("variableName", variableName);
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put(variableName, value);
-    setVariables(executionId, variables, true);
+    setVariables(taskId, variables, true);
   }
 
-  public void setVariables(String executionId, Map<String, ? extends Object> variables) {
-    setVariables(executionId, variables, false);
+  public void setVariables(String taskId, Map<String, ? extends Object> variables) {
+    setVariables(taskId, variables, false);
   }
 
-  public void setVariablesLocal(String executionId, Map<String, ? extends Object> variables) {
-    setVariables(executionId, variables, true);
+  public void setVariablesLocal(String taskId, Map<String, ? extends Object> variables) {
+    setVariables(taskId, variables, true);
   }
 
-  protected void setVariables(String executionId, Map<String, ? extends Object> variables, boolean local) {
+  protected void setVariables(String taskId, Map<String, ? extends Object> variables, boolean local) {
     try {
-      commandExecutor.execute(new SetTaskVariablesCmd(executionId, variables, local));
+      commandExecutor.execute(new SetTaskVariablesCmd(taskId, variables, local));
     } catch (ProcessEngineException ex) {
       if (ExceptionUtil.checkValueTooLongException(ex)) {
         throw new BadUserRequestException("Variable value is too long", ex);
@@ -319,13 +329,13 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
   }
 
   public void removeVariable(String taskId, String variableName) {
-    Collection<String> variableNames = new ArrayList<String>();
+    Collection<String> variableNames = new ArrayList<>();
     variableNames.add(variableName);
     commandExecutor.execute(new RemoveTaskVariablesCmd(taskId, variableNames, false));
   }
 
   public void removeVariableLocal(String taskId, String variableName) {
-    Collection<String> variableNames = new ArrayList<String>(1);
+    Collection<String> variableNames = new ArrayList<>(1);
     variableNames.add(variableName);
     commandExecutor.execute(new RemoveTaskVariablesCmd(taskId, variableNames, true));
   }
@@ -414,4 +424,28 @@ public class TaskServiceImpl extends ServiceImpl implements TaskService {
     return new TaskReportImpl(commandExecutor);
   }
 
+  @Override
+  public void handleBpmnError(String taskId, String errorCode) {
+    commandExecutor.execute(new HandleTaskBpmnErrorCmd(taskId, errorCode));
+  }
+
+  @Override
+  public void handleBpmnError(String taskId, String errorCode, String errorMessage) {
+    commandExecutor.execute(new HandleTaskBpmnErrorCmd(taskId, errorCode, errorMessage));
+  }
+
+  @Override
+  public void handleBpmnError(String taskId, String errorCode, String errorMessage, Map<String, Object> variables) {
+    commandExecutor.execute(new HandleTaskBpmnErrorCmd(taskId, errorCode, errorMessage, variables));
+  }
+
+  @Override
+  public void handleEscalation(String taskId, String escalationCode) {
+    commandExecutor.execute(new HandleTaskEscalationCmd(taskId, escalationCode));
+  }
+
+  @Override
+  public void handleEscalation(String taskId, String escalationCode, Map<String, Object> variables) {
+    commandExecutor.execute(new HandleTaskEscalationCmd(taskId, escalationCode, variables));
+  }
 }

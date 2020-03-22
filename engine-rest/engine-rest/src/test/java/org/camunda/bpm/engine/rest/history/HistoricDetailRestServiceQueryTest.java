@@ -1,8 +1,12 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+/*
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +16,8 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.history.HistoricFormField;
@@ -46,13 +50,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.fest.assertions.Assertions.assertThat;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -571,6 +576,7 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
     String returnedExecutionId2 = from(content).getString("[1].executionId");
     String returnedTaskId2 = from(content).getString("[1].taskId");
     Date returnedTime2 = DateTimeUtil.parseDate(from(content).getString("[1].time"));
+    Date returnedRemovalTime = DateTimeUtil.parseDate(from(content).getString("[1].removalTime"));
     String returnedFieldId = from(content).getString("[1].fieldId");
     String returnedFieldValue = from(content).getString("[1].fieldValue");
     String returnedType = from(content).getString("[1].type");
@@ -580,6 +586,7 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
     String returnedCaseExecutionId2 = from(content).getString("[1].caseExecutionId");
     String returnedTenantId2 = from(content).getString("[1].tenantId");
     String returnedOperationId2 = from(content).getString("[1].userOperationId");
+    String returnedRootProcessInstanceId = from(content).getString("[1].rootProcessInstanceId");
 
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_ID, returnedId2);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_PROC_DEF_KEY, returnedProcessDefinitionKey2);
@@ -589,6 +596,7 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_EXEC_ID, returnedExecutionId2);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_TASK_ID, returnedTaskId2);
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_TIME), returnedTime2);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_TIME), returnedRemovalTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_FIELD_ID, returnedFieldId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_VALUE, returnedFieldValue);
     Assert.assertEquals("formField", returnedType);
@@ -599,6 +607,7 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
     Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId2);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_EXEC_ID, returnedExecutionId2);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_FIELD_OPERATION_ID, returnedOperationId2);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_FORM_ROOT_PROCESS_INSTANCE_ID, returnedRootProcessInstanceId);
   }
 
   @Test
@@ -1146,6 +1155,76 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
     verifyTenantIdListParameterResponse(response);
   }
 
+  @Test
+  public void testQueryWithoutTenantIdQueryParameter() {
+    // given
+    List<HistoricDetail> details = new ArrayList<HistoricDetail>();
+
+    historicUpdateBuilder = MockProvider.mockHistoricVariableUpdate(null);
+    historicUpdateMock = historicUpdateBuilder.build();
+    historicFormFieldMock = MockProvider.createMockHistoricFormField(null);
+
+    details.add(historicUpdateMock);
+    details.add(historicFormFieldMock);
+
+    mockedQuery = setUpMockedDetailsQuery(details);
+
+    // when
+    Response response = given()
+        .queryParam("withoutTenantId", true)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when()
+        .get(HISTORIC_DETAIL_RESOURCE_URL);
+
+    // then
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(2);
+
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId).isEqualTo(null);
+  }
+
+  @Test
+  public void testQueryWithoutTenantIdPostParameter() {
+    // given
+    List<HistoricDetail> details = new ArrayList<HistoricDetail>();
+
+    historicUpdateBuilder = MockProvider.mockHistoricVariableUpdate(null);
+    historicUpdateMock = historicUpdateBuilder.build();
+    historicFormFieldMock = MockProvider.createMockHistoricFormField(null);
+
+    details.add(historicUpdateMock);
+    details.add(historicFormFieldMock);
+
+    mockedQuery = setUpMockedDetailsQuery(details);
+    Map<String, Object> queryParameters = Collections.singletonMap("withoutTenantId", (Object) true);
+
+    // when
+    Response response = given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(queryParameters)
+        .expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when()
+        .post(HISTORIC_DETAIL_RESOURCE_URL);
+
+    // then
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(2);
+
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId).isEqualTo(null);
+  }
+
   private void verifyTenantIdListParameterResponse(Response response) {
     String content = response.asString();
     List<String> historicDetails = from(content).getList("");
@@ -1266,6 +1345,39 @@ public class HistoricDetailRestServiceQueryTest extends AbstractRestServiceTest 
 
     verify(mockedQuery)
       .occurredAfter(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_VAR_UPDATE_TIME));
+  }
+
+  @Test
+  public void testGetQueryWhereFileWasDeleted() {
+    doThrow(new IllegalArgumentException("Parameter 'filename' is null")).when(historicUpdateMock).getTypedValue();
+
+    // GET
+    expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_DETAIL_RESOURCE_URL);
+
+    verify(mockedQuery).list();
+    verify(mockedQuery).disableBinaryFetching();
+    verifyNoMoreInteractions(mockedQuery);
+  }
+
+  @Test
+  public void testPostQueryWhereFileWasDeleted() {
+    doThrow(new IllegalArgumentException("Parameter 'filename' is null")).when(historicUpdateMock).getTypedValue();
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .body(Collections.emptyMap())
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_DETAIL_RESOURCE_URL);
+
+    verify(mockedQuery).list();
+    verify(mockedQuery).disableBinaryFetching();
+    verifyNoMoreInteractions(mockedQuery);
   }
 
   private List<HistoricDetail> createMockHistoricDetailsTwoTenants() {

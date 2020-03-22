@@ -1,9 +1,12 @@
 /*
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *       http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +16,8 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.util.Date;
-import java.util.List;
-import java.util.ListIterator;
-
+import org.camunda.bpm.engine.BadUserRequestException;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
@@ -30,9 +31,14 @@ import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobH
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyManager;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.runtime.Job;
+
+import java.util.Date;
+import java.util.List;
+import java.util.ListIterator;
 
 /**
  * @author Svetlana Dorokhova
@@ -53,6 +59,10 @@ public class HistoryCleanupCmd implements Command<Job> {
 
   @Override
   public Job execute(CommandContext commandContext) {
+    if (!isHistoryCleanupEnabled(commandContext)) {
+      throw new BadUserRequestException("History cleanup is disabled for this engine");
+    }
+
     AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
     ProcessEngineConfigurationImpl processEngineConfiguration = commandContext.getProcessEngineConfiguration();
 
@@ -81,6 +91,8 @@ public class HistoryCleanupCmd implements Command<Job> {
       suspendJobs(historyCleanupJobs);
 
     }
+
+    writeUserOperationLog(commandContext);
 
     return historyCleanupJobs.size() > 0 ? historyCleanupJobs.get(0) : null;
   }
@@ -192,4 +204,22 @@ public class HistoryCleanupCmd implements Command<Job> {
     int minuteTo = minuteChunk[1];
     return new HistoryCleanupContext(immediatelyDue, minuteFrom, minuteTo);
   }
+
+  protected void writeUserOperationLog(CommandContext commandContext) {
+    PropertyChange propertyChange = new PropertyChange("immediatelyDue", null, immediatelyDue);
+    commandContext.getOperationLogManager()
+      .logJobOperation(UserOperationLogEntry.OPERATION_TYPE_CREATE_HISTORY_CLEANUP_JOB,
+        null,
+        null,
+        null,
+        null,
+        null,
+        propertyChange);
+  }
+
+  protected boolean isHistoryCleanupEnabled(CommandContext commandContext) {
+    return commandContext.getProcessEngineConfiguration()
+        .isHistoryCleanupEnabled();
+  }
+
 }
